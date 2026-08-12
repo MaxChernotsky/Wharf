@@ -1,0 +1,11 @@
+name: Port Scanner
+description: Scans every localhost port and shows what's listening on it
+icon: "🔍"
+type: python
+run: python3 app.py
+autostart: true
+restart: on-failure
+health:
+  type: http
+  path: /
+  timeout_s: 30

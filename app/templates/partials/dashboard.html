@@ -1,0 +1,21 @@
+<div class="overview" data-running="{{ totals.running }}">
+  <div class="tile">
+    <div class="tile-label">Running</div>
+    <div class="tile-value">{{ totals.running }}<span class="tile-sub">/{{ totals.total }}</span></div>
+  </div>
+  <div class="tile">
+    <div class="tile-label">CPU</div>
+    <div class="tile-value">{{ "%.0f"|format(totals.cpu) }}<span class="tile-sub">%</span></div>
+  </div>
+  <div class="tile">
+    <div class="tile-label">Memory</div>
+    <div class="tile-value">{{ "%.0f"|format(totals.rss) }}<span class="tile-sub">MB</span></div>
+  </div>
+  <div class="tile">
+    <div class="tile-label">Disk (tools)</div>
+    <div class="tile-value">{% if totals.disk >= 1024 %}{{ "%.1f"|format(totals.disk / 1024) }}<span class="tile-sub">GB</span>{% else %}{{ "%.0f"|format(totals.disk) }}<span class="tile-sub">MB</span>{% endif %}</div>
+  </div>
+</div>
+<div class="grid">
+  {% include "partials/tool_grid.html" %}
+</div>

@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Starting {{ tool.display_name }} — Wharf{% endblock %}
+{% import "partials/icons.html" as icons %}
+{% block content %}
+<div class="launch-wrap">
+  <div class="launch-card">
+    <span class="launch-icon">{% if tool.manifest and tool.manifest.icon %}{{ tool.manifest.icon }}{% else %}{{ icons.wrench(44) }}{% endif %}</span>
+    <h1>Starting {{ tool.display_name }}…</h1>
+    <p class="hint" id="launch-status">Waking the tool up — you'll be redirected automatically.</p>
+    <span class="spinner"></span>
+    <p><a href="/tools/{{ tool.id }}">View logs instead</a></p>
+  </div>
+</div>
+<script>
+(async function () {
+  const statusEl = document.getElementById("launch-status");
+  const target = "http://" + location.hostname + ":{{ tool.port }}";
+  for (let i = 0; i < 150; i++) {
+    try {
+      const res = await fetch("/api/tools/{{ tool.id }}");
+      const d = await res.json();
+      if (d.status === "running" || d.status === "unhealthy") {
+        statusEl.textContent = "Ready — opening…";
+        window.location.href = target;
+        return;
+      }
+      if (["crashed", "error", "stopped"].includes(d.status)) {
+        statusEl.textContent = "The tool failed to start (" + d.status + ") — check its logs.";
+        return;
+      }
+    } catch {}
+    await new Promise(r => setTimeout(r, 1000));
+  }
+  statusEl.textContent = "Still not up after 2½ minutes — check the tool's logs.";
+})();
+</script>
+{% endblock %}

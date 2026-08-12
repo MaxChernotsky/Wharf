@@ -1,0 +1,38 @@
+{% import "partials/icons.html" as icons %}
+{% set label, color = labels[tool.status] %}
+<div class="detail-meta">
+  <span class="badge badge-{{ color }}"><span class="dot"></span>{{ label }}</span>
+  {% if tool.manifest and tool.manifest.watch %}<span class="badge badge-blue">{{ icons.eye(13) }} watching for changes</span>{% endif -%}
+  {% if tool.port %}<span>Port <strong>{{ tool.port }}</strong></span>{% endif %}
+  {% if tool.pid %}<span>PID <strong>{{ tool.pid }}</strong></span>{% endif %}
+  {% if tool.uptime_s %}<span>Up <strong>{{ tool.uptime_s|uptime }}</strong></span>{% endif %}
+  {% if tool.cpu_pct is not none %}<span>CPU <strong>{{ "%.0f"|format(tool.cpu_pct) }}%</strong></span>{% endif %}
+  {% if tool.rss_mb is not none %}<span>Mem <strong>{{ "%.0f"|format(tool.rss_mb) }} MB</strong></span>{% endif %}
+  {% if tool.restart_count %}<span>Restarts (10 min): <strong>{{ tool.restart_count }}</strong></span>{% endif %}
+  {% if tool.last_exit_code is not none %}<span>Last exit code: <strong>{{ tool.last_exit_code }}</strong></span>{% endif %}
+  {% if tool.stopped_reason %}<span>{{ tool.stopped_reason }}</span>{% endif %}
+</div>
+
+<div class="card-actions detail-actions" id="tool-{{ tool.id }}">
+  {% if tool.status.value in ("running", "unhealthy") %}
+    <a class="btn btn-primary" href="http://{{ host }}:{{ tool.port }}" target="_blank" rel="noopener" title="Open"><span class="label">Open</span>{{ icons.external_link(14) }}</a>
+    <button type="button" class="btn" title="Open in a panel on this page" data-frame-url="http://{{ host }}:{{ tool.port }}" data-frame-title="{{ tool.display_name }}">{{ icons.panel(14) }}<span class="label">Open here</span></button>
+  {% endif %}
+  <button class="btn" hx-post="/api/tools/{{ tool.id }}/start" hx-swap="none" title="Start">{{ icons.play(14) }}<span class="label">Start</span></button>
+  <button class="btn" hx-post="/api/tools/{{ tool.id }}/stop" hx-swap="none" title="Stop">{{ icons.stop(14) }}<span class="label">Stop</span></button>
+  <button class="btn" hx-post="/api/tools/{{ tool.id }}/restart" hx-swap="none" title="Restart">{{ icons.rotate_cw(14) }}<span class="label">Restart</span></button>
+  <button class="btn" hx-post="/api/tools/{{ tool.id }}/install" hx-swap="none" title="Install">{{ icons.download(14) }}<span class="label">Install</span></button>
+  <button class="btn" hx-post="/api/tools/{{ tool.id }}/install?rebuild=true" hx-confirm="Wipe .venv / node_modules and reinstall?" hx-swap="none" title="Rebuild">{{ icons.package(14) }}<span class="label">Rebuild</span></button>
+  {% if tool.manifest %}
+    {% if tool.manifest.watch %}
+      <button class="btn" title="Auto-restarts on file changes — stop watching" hx-post="/api/tools/{{ tool.id }}/watch?enabled=false" hx-swap="none">{{ icons.eye_off(14) }}<span class="label">Stop watching</span></button>
+    {% else %}
+      <button class="btn" title="Auto-restart this tool when its files change" hx-post="/api/tools/{{ tool.id }}/watch?enabled=true" hx-swap="none">{{ icons.eye(14) }}<span class="label">Watch for changes</span></button>
+    {% endif %}
+  {% endif %}
+  <a class="btn" href="/api/tools/{{ tool.id }}/export" download title="Export zip">{{ icons.archive(14) }}<span class="label">Export zip</span></a>
+  <button class="btn btn-danger" hx-delete="/api/tools/{{ tool.id }}?delete_files=true"
+          hx-confirm="Delete this tool AND its files from disk? This cannot be undone."
+          hx-swap="none" onclick="setTimeout(()=>location.href='/', 600)" title="Delete">{{ icons.trash(14) }}<span class="label">Delete</span></button>
+  <span hx-get="/partials/tools/{{ tool.id }}/install-status" hx-trigger="load, every 2s" hx-swap="innerHTML"></span>
+</div>

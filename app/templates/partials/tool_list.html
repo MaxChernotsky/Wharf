@@ -1,0 +1,43 @@
+<aside id="tool-list" class="sidebar"
+       hx-get="/partials/tool-list?active={{ active }}&sort={{ sort }}"
+       hx-trigger="every 3s"
+       hx-swap="outerHTML">
+  <div class="sidebar-head">
+    <a class="sort-btn {{ 'on' if sort == 'name' }}"
+       hx-get="/partials/tool-list?active={{ active }}&sort=name"
+       hx-target="#tool-list" hx-swap="outerHTML">Name</a>
+    <a class="sort-btn {{ 'on' if sort == 'port' }}"
+       hx-get="/partials/tool-list?active={{ active }}&sort=port"
+       hx-target="#tool-list" hx-swap="outerHTML">Port</a>
+  </div>
+  {% set on_states = ("running", "unhealthy", "starting", "stopping") %}
+  {% set on_tools = tools | selectattr("status.value", "in", on_states) | list %}
+  {% set off_tools = tools | rejectattr("status.value", "in", on_states) | list %}
+  {% set rss_values = on_tools | map(attribute="rss_mb") | select | list %}
+  {% set max_rss = (rss_values | max) if rss_values else 0 %}
+  {% for t in on_tools %}
+  {% set label, color = labels[t.status] %}
+  <a class="trow {{ 'current' if t.id == active }}" href="/tools/{{ t.id }}?sort={{ sort }}">
+    <span class="sdot sdot-{{ color }}" title="{{ label }}"></span>
+    <span class="trow-main">
+      <span class="trow-name">{{ t.display_name }}</span>
+      {% if t.rss_mb and max_rss %}
+      <span class="rambar" title="{{ '%.0f'|format(t.rss_mb) }} MB">
+        <span class="rambar-fill" style="width: {{ '%.0f'|format(t.rss_mb / max_rss * 100) }}%"></span>
+      </span>
+      {% endif %}
+    </span>
+    {% if t.port %}<span class="trow-port live">:{{ t.port }}</span>{% endif %}
+  </a>
+  {% endfor %}
+  {% if on_tools and off_tools %}<div class="sidebar-divider"></div>{% endif %}
+  {% for t in off_tools %}
+  {% set label, color = labels[t.status] %}
+  <a class="trow {{ 'current' if t.id == active }}" href="/tools/{{ t.id }}?sort={{ sort }}">
+    <span class="sdot sdot-{{ color }}" title="{{ label }}"></span>
+    <span class="trow-main"><span class="trow-name">{{ t.display_name }}</span></span>
+    {% if t.port %}<span class="trow-port">:{{ t.port }}</span>{% endif %}
+  </a>
+  {% endfor %}
+  <a class="trow add" href="/settings">＋ Add tool</a>
+</aside>

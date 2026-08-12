@@ -1,0 +1,12 @@
+{% if tools %}
+  {% for tool in tools %}
+    {% with tool=tool, flash=None %}
+      {% include "partials/tool_card.html" %}
+    {% endwith %}
+  {% endfor %}
+{% else %}
+  <div class="empty">
+    <p>No tools yet.</p>
+    <p>Drop a folder into the <code>tools/</code> share, or <a href="/settings">upload a zip</a>.</p>
+  </div>
+{% endif %}

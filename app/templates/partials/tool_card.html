@@ -1,0 +1,72 @@
+{% import "partials/icons.html" as icons %}
+{% set label, color = labels[tool.status] %}
+<div class="card edge-{{ color }}" id="tool-{{ tool.id }}">
+  <div class="card-head">
+    <span class="icon">{% if tool.manifest and tool.manifest.icon %}{{ tool.manifest.icon }}{% else %}{{ icons.wrench(22) }}{% endif %}</span>
+    <div class="card-title">
+      <a href="/tools/{{ tool.id }}" class="name">{{ tool.display_name }}</a>
+      {% if tool.manifest and tool.manifest.description %}
+        <div class="desc">{{ tool.manifest.description }}</div>
+      {% endif %}
+    </div>
+    <span class="badge badge-{{ color }}"><span class="dot"></span>{{ label }}</span>
+    {% if tool.manifest and tool.manifest.watch %}<span class="badge badge-blue" title="Auto-restarts when its files change">{{ icons.eye(13) }}</span>{% endif %}
+  </div>
+
+  {% if tool.git_behind %}
+    <div class="warn">
+      {{ icons.arrow_down(14) }} {{ tool.git_behind }} update{{ "" if tool.git_behind == 1 else "s" }} available upstream
+    </div>
+  {% endif %}
+
+  {% if tool.status.value in ("running", "unhealthy") %}
+    <div class="stats">
+      <span class="stat">CPU {{ "%.0f"|format(tool.cpu_pct or 0) }}%
+        {% set pts = tool.spark_cpu | spark_points %}
+        {% if pts %}<svg class="spark" viewBox="0 0 60 16" width="60" height="16" aria-hidden="true"><polyline points="{{ pts }}"/><circle cx="{{ pts.rsplit(' ', 1)[-1].split(',')[0] }}" cy="{{ pts.rsplit(' ', 1)[-1].split(',')[1] }}" r="2"/></svg>{% endif %}
+      </span>
+      <span class="stat">{{ "%.0f"|format(tool.rss_mb or 0) }} MB
+        {% set pts = tool.spark_rss | spark_points %}
+        {% if pts %}<svg class="spark" viewBox="0 0 60 16" width="60" height="16" aria-hidden="true"><polyline points="{{ pts }}"/><circle cx="{{ pts.rsplit(' ', 1)[-1].split(',')[0] }}" cy="{{ pts.rsplit(' ', 1)[-1].split(',')[1] }}" r="2"/></svg>{% endif %}
+      </span>
+      <span class="stat">up {{ tool.uptime_s|uptime }}</span>
+    </div>
+  {% elif tool.stopped_reason %}
+    <div class="stats"><span>{{ tool.stopped_reason }}</span></div>
+  {% endif %}
+
+  {% if tool.manifest_error %}
+    <div class="warn error-text">{{ icons.alert_triangle(14) }} {{ tool.manifest_error }}</div>
+  {% endif %}
+  {% for w in tool.warnings %}
+    <div class="warn">{{ icons.alert_triangle(14) }} {{ w }}</div>
+  {% endfor %}
+  {% if flash %}
+    <div class="warn">{{ icons.alert_triangle(14) }} {{ flash }}</div>
+  {% endif %}
+
+  <div class="card-actions">
+    {% if tool.status.value == "unconfigured" %}
+      <a class="btn btn-primary" href="/tools/{{ tool.id }}" title="Configure">{{ icons.settings(14) }}<span class="label">Configure</span></a>
+    {% elif tool.status.value == "error" and not tool.manifest %}
+      <a class="btn" href="/tools/{{ tool.id }}" title="Fix manifest">{{ icons.settings(14) }}<span class="label">Fix manifest</span></a>
+    {% else %}
+      {% if tool.status.value in ("running", "unhealthy") %}
+        <a class="btn btn-primary" href="http://{{ host }}:{{ tool.port }}" target="_blank" rel="noopener" title="Open"><span class="label">Open</span>{{ icons.external_link(14) }}</a>
+        <button type="button" class="btn" title="Open in a panel on this page" data-frame-url="http://{{ host }}:{{ tool.port }}" data-frame-title="{{ tool.display_name }}">{{ icons.panel(14) }}<span class="label">Open here</span></button>
+        <button class="btn" hx-post="/partials/tools/{{ tool.id }}/stop" hx-target="#tool-{{ tool.id }}" hx-swap="outerHTML" title="Stop">{{ icons.stop(14) }}<span class="label">Stop</span></button>
+        <button class="btn" hx-post="/partials/tools/{{ tool.id }}/restart" hx-target="#tool-{{ tool.id }}" hx-swap="outerHTML" title="Restart">{{ icons.rotate_cw(14) }}<span class="label">Restart</span></button>
+      {% elif tool.status.value in ("starting", "stopping", "installing") %}
+        <span class="spinner"></span>
+      {% elif tool.status.value == "not_installed" %}
+        <button class="btn btn-primary" hx-post="/partials/tools/{{ tool.id }}/install" hx-target="#tool-{{ tool.id }}" hx-swap="outerHTML" title="Install">{{ icons.download(14) }}<span class="label">Install</span></button>
+      {% else %}
+        <a class="btn btn-primary" href="/launch/{{ tool.id }}" target="_blank" rel="noopener" title="Open"><span class="label">Open</span>{{ icons.play(14) }}</a>
+        <button type="button" class="btn" title="Open in a panel on this page" data-frame-url="/launch/{{ tool.id }}" data-frame-title="{{ tool.display_name }}">{{ icons.panel(14) }}<span class="label">Open here</span></button>
+        <button class="btn" hx-post="/partials/tools/{{ tool.id }}/start" hx-target="#tool-{{ tool.id }}" hx-swap="outerHTML" title="Start">{{ icons.play(14) }}<span class="label">Start</span></button>
+      {% endif %}
+      <a class="btn btn-ghost" href="/tools/{{ tool.id }}" title="Logs">{{ icons.terminal(14) }}<span class="label">Logs</span></a>
+    {% endif %}
+    {% if tool.port %}<span class="port">:{{ tool.port }}</span>{% endif %}
+  </div>
+</div>

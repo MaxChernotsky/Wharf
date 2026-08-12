@@ -1,0 +1,10 @@
+{% import "partials/icons.html" as icons %}
+{% if job %}
+  {% if job.active %}
+    <span class="badge badge-blue"><span class="spinner small"></span> Installing — {{ job.message }}</span>
+  {% elif job.ok %}
+    <span class="badge badge-green">{{ icons.check(13) }} {{ job.message }}</span>
+  {% else %}
+    <span class="badge badge-red">{{ icons.x(13) }} {{ job.message }}</span>
+  {% endif %}
+{% endif %}

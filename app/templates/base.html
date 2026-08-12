@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Wharf{% endblock %}</title>
+  <script>
+    // apply saved theme + icon-label mode before first paint to avoid a flash
+    const savedTheme = localStorage.getItem("theme");
+    if (savedTheme) document.documentElement.dataset.theme = savedTheme;
+    const savedIconMode = localStorage.getItem("iconMode");
+    if (savedIconMode) document.documentElement.dataset.iconMode = savedIconMode;
+  </script>
+  <link rel="stylesheet" href="/static/app.css?v=8">
+  <link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><line x1="2.2" y1="19.4" x2="21.8" y2="19.4" stroke="%23364554" stroke-width="1.5" stroke-linecap="round"/><line x1="6.2" y1="19.4" x2="6.2" y2="14.4" stroke="%23364554" stroke-width="1.8" stroke-linecap="round"/><line x1="12" y1="19.4" x2="12" y2="7.6" stroke="%23364554" stroke-width="1.8" stroke-linecap="round"/><line x1="17.8" y1="19.4" x2="17.8" y2="11.4" stroke="%23364554" stroke-width="1.8" stroke-linecap="round"/><path d="M6.2 14.4 L12 7.6 L17.8 11.4" fill="none" stroke="%234f9cf9" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round" opacity="0.75"/><circle cx="6.2" cy="14.4" r="1" fill="%237d8894"/><circle cx="12" cy="7.6" r="1.5" fill="%234f9cf9"/><circle cx="17.8" cy="11.4" r="1.1" fill="%2334c07c"/></svg>'>
+  <script src="/static/htmx.min.js"></script>
+  <script src="/static/frame-modal.js?v=1" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">
+      <svg class="logo" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
+        <line x1="2.2" y1="19.4" x2="21.8" y2="19.4" stroke="var(--logo-body)" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="6.2" y1="19.4" x2="6.2" y2="14.4" stroke="var(--logo-body)" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="12" y1="19.4" x2="12" y2="7.6" stroke="var(--logo-body)" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="17.8" y1="19.4" x2="17.8" y2="11.4" stroke="var(--logo-body)" stroke-width="1.8" stroke-linecap="round"/>
+        <path d="M6.2 14.4 L12 7.6 L17.8 11.4" fill="none" stroke="var(--accent)" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round" opacity="0.75"/>
+        <circle cx="6.2" cy="14.4" r="1" fill="var(--gray)"/>
+        <circle cx="12" cy="7.6" r="1.5" fill="var(--accent)"/>
+        <circle cx="17.8" cy="11.4" r="1.1" fill="var(--green)"/>
+      </svg>
+      <span>Wharf</span>
+    </a>
+    <nav>
+      <a class="icon-btn" href="/settings#add-tool" title="Add a tool" aria-label="Add a tool">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 5v14M5 12h14"/>
+        </svg>
+      </a>
+      <button class="icon-btn" id="theme-toggle" title="Toggle theme" aria-label="Toggle theme"></button>
+      <a class="icon-btn" href="/settings" title="Settings" aria-label="Settings">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.08a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.08a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.08a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+      </a>
+    </nav>
+  </header>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+  <script>
+    const SUN = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>';
+    const MOON = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
+    const themeBtn = document.getElementById("theme-toggle");
+    function effectiveTheme() {
+      return document.documentElement.dataset.theme ||
+        (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+    }
+    function renderThemeIcon() {
+      // show the theme you'd switch TO
+      themeBtn.innerHTML = effectiveTheme() === "dark" ? SUN : MOON;
+    }
+    themeBtn.addEventListener("click", () => {
+      const next = effectiveTheme() === "dark" ? "light" : "dark";
+      document.documentElement.dataset.theme = next;
+      localStorage.setItem("theme", next);
+      renderThemeIcon();
+    });
+    renderThemeIcon();
+  </script>
+</body>
+</html>

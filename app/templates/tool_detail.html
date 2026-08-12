@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% import "partials/icons.html" as icons %}
+{% block title %}{{ tool.display_name }} — Wharf{% endblock %}
+{% block content %}
+<div class="layout">
+  {% include "partials/tool_list.html" %}
+  <div class="detail">
+<div class="page-head">
+  <h1>{% if tool.manifest and tool.manifest.icon %}{{ tool.manifest.icon }}{% else %}{{ icons.wrench(24) }}{% endif %} {{ tool.display_name }}</h1>
+</div>
+{% if tool.manifest and tool.manifest.description %}
+  <p class="hint" style="margin-top:-0.6rem">{{ tool.manifest.description }}</p>
+{% endif %}
+
+{% if tool.manifest_error %}<div class="warn error-text">{{ icons.alert_triangle(14) }} {{ tool.manifest_error }}</div>{% endif %}
+{% for w in tool.warnings %}<div class="warn">{{ icons.alert_triangle(14) }} {{ w }}</div>{% endfor %}
+{% if saved %}<div class="ok-note">{{ icons.check(14) }} Manifest saved.</div>{% endif %}
+
+<div id="tool-live" hx-get="/partials/tools/{{ tool.id }}/live" hx-trigger="load, every 2s" hx-swap="innerHTML">
+  {% include "partials/tool_live.html" %}
+</div>
+
+{% if tool.has_git %}
+<section class="panel">
+  <div class="panel-head">
+    <h2>Git</h2>
+    <div class="form-actions" style="margin-top:0">
+      <button class="btn btn-ghost" id="git-check" title="Check for updates">{{ icons.arrow_down(14) }}<span class="label">Check for updates</span></button>
+      <button class="btn" id="git-pull" title="Pull &amp; reinstall">{{ icons.download(14) }}<span class="label">Pull &amp; reinstall</span></button>
+    </div>
+  </div>
+  <table class="kv" id="git-info"><tr><td colspan="2" class="hint">Loading repo info…</td></tr></table>
+  <p class="hint" id="git-msg"></p>
+  <template id="icon-x-tpl">{{ icons.x(14) }}</template>
+  <template id="icon-check-tpl">{{ icons.check(14) }}</template>
+</section>
+<script>
+(async function () {
+  const table = document.getElementById("git-info");
+  const msg = document.getElementById("git-msg");
+  const pullBtn = document.getElementById("git-pull");
+  const checkBtn = document.getElementById("git-check");
+  const ICON_X = document.getElementById("icon-x-tpl").innerHTML;
+  const ICON_CHECK = document.getElementById("icon-check-tpl").innerHTML;
+  function setMsg(el, icon, text) { el.innerHTML = icon; el.append(" " + text); }
+
+  function ago(ts) {
+    if (!ts) return null;
+    const s = Math.max(0, Math.round(Date.now() / 1000 - ts));
+    if (s < 90) return `${s}s ago`;
+    const m = Math.round(s / 60);
+    if (m < 90) return `${m}m ago`;
+    return `${Math.round(m / 60)}h ago`;
+  }
+
+  function updatesRow(d) {
+    if (d.error) {
+      return `<tr><td>Updates</td><td><span class="hint">unknown — ${d.error}</span></td></tr>`;
+    }
+    if (d.behind == null) {
+      return `<tr><td>Updates</td><td><span class="hint">not checked yet</span></td></tr>`;
+    }
+    const when = ago(d.checked_at);
+    const status = d.behind > 0
+      ? `<span class="badge badge-orange">${d.behind} commit${d.behind === 1 ? "" : "s"} behind</span>`
+      : `<span class="badge badge-green">up to date</span>`;
+    return `<tr><td>Updates</td><td>${status}${when ? ` <span class="hint">checked ${when}</span>` : ""}</td></tr>`;
+  }
+
+  async function refresh() {
+    try {
+      const d = await (await fetch("/api/tools/{{ tool.id }}/git")).json();
+      table.innerHTML =
+        `<tr><td>Branch</td><td><code>${d.branch ?? "?"}</code>${d.dirty ? ' <span class="badge badge-orange">uncommitted changes</span>' : ""}</td></tr>` +
+        `<tr><td>Last commit</td><td>${d.last_commit ?? "?"}</td></tr>` +
+        (d.remote ? `<tr><td>Remote</td><td><code>${d.remote}</code></td></tr>` : "") +
+        updatesRow(d);
+    } catch { table.innerHTML = '<tr><td colspan="2" class="hint">Could not read repo info.</td></tr>'; }
+  }
+  const checkBtnHtml = checkBtn.innerHTML;
+  const pullBtnHtml = pullBtn.innerHTML;
+  checkBtn.addEventListener("click", async () => {
+    checkBtn.disabled = true; checkBtn.textContent = "Checking…";
+    try { await fetch("/api/tools/{{ tool.id }}/git/check", { method: "POST" }); }
+    catch {}
+    await refresh();
+    checkBtn.disabled = false; checkBtn.innerHTML = checkBtnHtml;
+  });
+  pullBtn.addEventListener("click", async () => {
+    pullBtn.disabled = true; pullBtn.textContent = "Pulling…"; msg.textContent = "";
+    try {
+      const res = await fetch("/api/tools/{{ tool.id }}/git/pull", { method: "POST" });
+      const d = await res.json();
+      if (!res.ok) { setMsg(msg, ICON_X, d.detail || "pull failed"); }
+      else if (d.up_to_date) { setMsg(msg, ICON_CHECK, "Already up to date."); }
+      else { setMsg(msg, ICON_CHECK, "Pulled — reinstalling in the background (watch the Install log)."); }
+      refresh();
+    } catch { setMsg(msg, ICON_X, "network error"); }
+    pullBtn.disabled = false; pullBtn.innerHTML = pullBtnHtml;
+  });
+  refresh();
+})();
+</script>
+{% endif %}
+
+<section class="panel" id="activity-panel" data-tool="{{ tool.id }}">
+  <div class="panel-head"><h2>Activity</h2></div>
+  <div class="chart-block">
+    <div class="chart-title">CPU %</div>
+    <div class="chart" id="chart-cpu"></div>
+  </div>
+  <div class="chart-block">
+    <div class="chart-title">Memory MB</div>
+    <div class="chart" id="chart-rss"></div>
+  </div>
+  <div class="chart-block">
+    <div class="chart-title">Events</div>
+    <div class="timeline" id="timeline"></div>
+  </div>
+  <div id="chart-tooltip" class="chart-tooltip" hidden></div>
+</section>
+
+<section class="panel">
+  <div class="panel-head">
+    <h2>Logs</h2>
+    <div class="log-controls">
+      <select id="log-source">
+        <option value="run">Run</option>
+        <option value="install">Install</option>
+      </select>
+      <input type="search" id="log-search" placeholder="Find…" autocomplete="off">
+      <label><input type="checkbox" id="log-timestamps"> Times</label>
+      <label><input type="checkbox" id="log-autoscroll" checked> Autoscroll</label>
+      <button class="btn btn-ghost" id="log-clear" title="Clear view">{{ icons.x(14) }}<span class="label">Clear view</span></button>
+    </div>
+  </div>
+  <pre id="log-view" data-tool="{{ tool.id }}"></pre>
+</section>
+
+<details class="panel manifest-panel" {% if not tool.manifest %}open{% endif %}>
+  <summary class="panel-head"><h2>{{ icons.settings(16) }} Settings</h2><span class="hint">tool.yml<span class="chevron">{{ icons.chevron_right(12) }}</span></span></summary>
+  {% if manifest_form_error %}<div class="warn error-text">{{ icons.alert_triangle(14) }} {{ manifest_form_error }}</div>{% endif %}
+  <form method="post" action="/tools/{{ tool.id }}/manifest">
+    <textarea name="manifest_yaml" rows="16" spellcheck="false">{{ manifest_yaml }}</textarea>
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit" title="Save manifest">{{ icons.save(14) }}<span class="label">Save manifest</span></button>
+      {% if not tool.manifest %}<span class="hint">Prefilled with a suggested manifest — review the run command, then save.</span>{% endif %}
+    </div>
+  </form>
+</details>
+
+  </div>
+</div>
+
+<script src="/static/logs.js?v=8"></script>
+<script src="/static/charts.js?v=8"></script>
+{% endblock %}
