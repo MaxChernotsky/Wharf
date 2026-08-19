@@ -482,6 +482,50 @@ async def browse_folder():
     return {"path": out.decode("utf-8", errors="replace").strip()}
 
 
+@router.post("/menubar/launch")
+async def launch_menubar():
+    """Start the macOS menubar companion app (macos-menubar/wharf_menubar.py)
+    as a detached background process. Same constraint as /tools/browse: only
+    works when Wharf itself runs locally on macOS with a GUI session, since
+    the menu bar it opens belongs to the machine actually running Wharf, not
+    whatever machine happens to have this page open."""
+    if platform.system() != "Darwin":
+        raise HTTPException(501, "the menubar app only runs when Wharf is on macOS locally")
+
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    script = repo_root / "macos-menubar" / "wharf_menubar.py"
+    if not script.is_file():
+        raise HTTPException(404, "macos-menubar/wharf_menubar.py not found next to this checkout")
+
+    try:
+        pgrep = await asyncio.create_subprocess_exec(
+            "pgrep", "-f", str(script),
+            stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
+        )
+        if await pgrep.wait() == 0:
+            return {"ok": True, "message": "already running"}
+    except FileNotFoundError:
+        pass  # no pgrep on this system — fall through and just (re)launch
+
+    venv_python = repo_root / "macos-menubar" / ".venv" / "bin" / "python"
+    python = str(venv_python) if venv_python.is_file() else "python3"
+
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            python, str(script),
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
+            start_new_session=True,  # survive the dashboard process reloading/restarting
+        )
+    except FileNotFoundError:
+        raise HTTPException(501, f"{python} not found — set up macos-menubar/.venv first (see its README)")
+
+    await asyncio.sleep(0.6)  # long enough for an immediate import/crash to surface
+    if proc.returncode is not None and proc.returncode != 0:
+        out = (await proc.stdout.read()).decode("utf-8", errors="replace").strip()
+        raise HTTPException(500, out[-500:] if out else "menubar app exited immediately")
+    return {"ok": True, "message": "menubar app launched"}
+
+
 @router.post("/tools/link")
 def link_tool(
     path: str = Form(...),

@@ -207,6 +207,21 @@ After making the changes, verify the server starts, binds 0.0.0.0 on $PORT, and 
       </section>
 
       <section class="panel">
+        <div class="panel-head"><h2>macOS menubar app</h2></div>
+        <p class="hint">
+          Launches the companion menubar app (<code>macos-menubar/</code> in this
+          checkout) — an anchor icon that lists active tools and opens one in your
+          browser with a click. Only works when Wharf itself is running locally on
+          macOS (not from Docker, and not when viewing this page from another
+          machine) — see <code>macos-menubar/README.md</code> for one-time setup.
+        </p>
+        <div class="form-actions">
+          <button class="btn" id="menubar-launch" title="Launch">{{ icons.external_link(14) }}<span class="label">Launch</span></button>
+          <span id="menubar-msg" class="hint"></span>
+        </div>
+      </section>
+
+      <section class="panel">
         <div class="panel-head"><h2>Port assignments</h2></div>
         {% if assignments %}
         <table class="kv">
@@ -345,6 +360,29 @@ linkForm.addEventListener("submit", async (e) => {
       setMsg(msg, ICON_X, d.detail || "link failed");
     }
   } catch { setMsg(msg, ICON_X, "network error"); }
+});
+
+const menubarBtn = document.getElementById("menubar-launch");
+const menubarBtnHtml = menubarBtn.innerHTML;
+menubarBtn.addEventListener("click", async () => {
+  const msg = document.getElementById("menubar-msg");
+  menubarBtn.disabled = true;
+  menubarBtn.textContent = "Launching…";
+  msg.textContent = "";
+  try {
+    const res = await fetch("/api/menubar/launch", { method: "POST" });
+    const d = await res.json();
+    if (res.ok && d.ok) {
+      setMsg(msg, ICON_CHECK, d.message === "already running" ? "Already running — check your menu bar." : "Launched — check your menu bar.");
+    } else {
+      setMsg(msg, ICON_X, d.detail || "couldn't launch the menubar app");
+    }
+  } catch {
+    setMsg(msg, ICON_X, "network error");
+  } finally {
+    menubarBtn.disabled = false;
+    menubarBtn.innerHTML = menubarBtnHtml;
+  }
 });
 
 const copyBtn = document.getElementById("copy-prompt");
