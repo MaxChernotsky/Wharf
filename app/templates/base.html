@@ -37,6 +37,11 @@
           <path d="M12 5v14M5 12h14"/>
         </svg>
       </a>
+      <button class="icon-btn" id="menubar-launch-btn" title="Launch macOS menubar app" aria-label="Launch macOS menubar app">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14 21 3"/>
+        </svg>
+      </button>
       <button class="icon-btn" id="theme-toggle" title="Toggle theme" aria-label="Toggle theme"></button>
       <a class="icon-btn" href="/settings" title="Settings" aria-label="Settings">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -68,6 +73,36 @@
       renderThemeIcon();
     });
     renderThemeIcon();
+
+    const menubarBtn = document.getElementById("menubar-launch-btn");
+    const menubarBtnHtml = menubarBtn.innerHTML;
+    const menubarBtnTitle = menubarBtn.title;
+    const MENUBAR_CHECK = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>';
+    const MENUBAR_X = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+    menubarBtn.addEventListener("click", async () => {
+      menubarBtn.disabled = true;
+      let icon = MENUBAR_CHECK, title = "Launched — check your menu bar";
+      try {
+        const res = await fetch("/api/menubar/launch", { method: "POST" });
+        const d = await res.json();
+        if (!res.ok || !d.ok) {
+          icon = MENUBAR_X;
+          title = d.detail || "couldn't launch the menubar app";
+        } else if (d.message === "already running") {
+          title = "Already running — check your menu bar";
+        }
+      } catch {
+        icon = MENUBAR_X;
+        title = "network error";
+      }
+      menubarBtn.innerHTML = icon;
+      menubarBtn.title = title;
+      setTimeout(() => {
+        menubarBtn.innerHTML = menubarBtnHtml;
+        menubarBtn.title = menubarBtnTitle;
+        menubarBtn.disabled = false;
+      }, 2500);
+    });
   </script>
 </body>
 </html>
