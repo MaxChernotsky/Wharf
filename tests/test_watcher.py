@@ -44,6 +44,25 @@ def test_fingerprint_tracks_dotfiles_like_env(tmp_path):
     assert ".env" in fingerprint(tmp_path)
 
 
+def test_fingerprint_skips_sqlite_wal_side_files(tmp_path):
+    (tmp_path / "app.py").write_text("x")
+    (tmp_path / "data.sqlite-shm").write_text("wal")
+    (tmp_path / "data.sqlite-wal").write_text("wal")
+    (tmp_path / "data.db-journal").write_text("wal")
+
+    assert set(fingerprint(tmp_path)) == {"app.py"}
+
+
+def test_fingerprint_honors_watch_ignore_patterns(tmp_path):
+    (tmp_path / "app.py").write_text("x")
+    (tmp_path / "data").mkdir()
+    (tmp_path / "data" / "finance.sqlite").write_text("db")
+    (tmp_path / "cache.tmp").write_text("tmp")
+
+    snap = fingerprint(tmp_path, ignore=("data", "*.tmp"))
+    assert set(snap) == {"app.py"}
+
+
 def test_describe_diff_added_removed_edited():
     old = {"a.py": (1, 10)}
     assert "added b.py" in describe_diff(old, {"a.py": (1, 10), "b.py": (2, 5)})

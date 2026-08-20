@@ -36,6 +36,9 @@ class Manifest(BaseModel):
     max_memory_mb: int = 0      # restart if the process tree exceeds this RSS (0 = unlimited)
     watch: bool = False         # dev mode: restart automatically when files in the folder change
     watch_debounce_s: float = 2.0  # quiet period after the last change before restarting
+    watch_ignore: list[str] = Field(default_factory=list)  # fnmatch patterns (relative to
+    # the tool dir) excluded from the watch fingerprint — for a tool's own runtime output
+    # (e.g. "data", "*.sqlite-*") that would otherwise trigger endless self-restarts
 
     @field_validator("run")
     @classmethod

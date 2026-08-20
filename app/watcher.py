@@ -13,6 +13,7 @@ low-dependency style (see resources.py's `du`/`ps` polling).
 from __future__ import annotations
 
 import asyncio
+import fnmatch
 import logging
 import os
 import time
@@ -28,27 +29,45 @@ log = logging.getLogger(__name__)
 
 POLL_INTERVAL_S = 2.0
 
-_JUNK_FILE_SUFFIXES = (".pyc", ".pyo", ".log")
+_JUNK_FILE_SUFFIXES = (
+    ".pyc", ".pyo", ".log",
+    # sqlite's WAL-mode side files churn on every read/write a running tool
+    # makes to its own database — not a source change, don't watch them
+    ".sqlite-shm", ".sqlite-wal", ".sqlite-journal",
+    ".db-shm", ".db-wal", ".db-journal",
+)
 _JUNK_FILE_NAMES = {".DS_Store"}
 
 Snapshot = dict[str, tuple[int, int]]  # relpath -> (mtime_ns, size)
 
 
-def fingerprint(tool_dir: Path) -> Snapshot:
+def _ignored(relpath: str, ignore: tuple[str, ...]) -> bool:
+    return any(fnmatch.fnmatch(relpath, pat.rstrip("/")) for pat in ignore)
+
+
+def fingerprint(tool_dir: Path, ignore: tuple[str, ...] = ()) -> Snapshot:
     """relpath -> (mtime_ns, size) for every source file under tool_dir,
-    skipping dependency/VCS noise (see registry.NOISE_DIR_NAMES)."""
+    skipping dependency/VCS noise (see registry.NOISE_DIR_NAMES) and any
+    tool.yml `watch_ignore` patterns for that tool's own runtime output."""
     out: Snapshot = {}
     for root, dirs, files in os.walk(tool_dir):
-        dirs[:] = [d for d in dirs if d not in registry.NOISE_DIR_NAMES]
+        rel_root = Path(root).relative_to(tool_dir)
+        dirs[:] = [
+            d for d in dirs
+            if d not in registry.NOISE_DIR_NAMES and not _ignored(str(rel_root / d), ignore)
+        ]
         for name in files:
             if name in _JUNK_FILE_NAMES or name.endswith(_JUNK_FILE_SUFFIXES):
+                continue
+            relpath = str(rel_root / name)
+            if _ignored(relpath, ignore):
                 continue
             p = Path(root) / name
             try:
                 st = p.stat()
             except OSError:
                 continue  # deleted mid-walk — next tick will see it as removed
-            out[str(p.relative_to(tool_dir))] = (st.st_mtime_ns, st.st_size)
+            out[relpath] = (st.st_mtime_ns, st.st_size)
     return out
 
 
@@ -121,7 +140,8 @@ class FolderWatcher:
                 continue
 
             state = self._state.setdefault(tid, _WatchState())
-            snapshot = await asyncio.to_thread(fingerprint, entry.path)
+            ignore = tuple(entry.manifest.watch_ignore)
+            snapshot = await asyncio.to_thread(fingerprint, entry.path, ignore)
 
             if not state.snapshot:
                 state.snapshot = snapshot  # first sight since (re)start: just baseline

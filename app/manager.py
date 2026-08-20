@@ -70,6 +70,8 @@ class ToolSupervisor:
         self.idle_since = None
         self.stopped_reason = None
 
+        chan = self.mgr.logs.channel(self.tool_id, "run")
+
         # A restart can race the previous holder releasing the port (e.g. container
         # restart while a tool shuts down) — wait briefly before giving up.
         self.status = ToolStatus.STARTING
@@ -78,13 +80,19 @@ class ToolSupervisor:
                 break
             await asyncio.sleep(1)
         else:
-            self.status = ToolStatus.ERROR
-            self.error = f"port {port} is already in use"
-            return
+            # Still held after the wait — most likely a stale instance Wharf lost
+            # track of (crash, killed dashboard, manual process) rather than a
+            # process that's mid-shutdown. Reap it and give the port one more
+            # chance before giving up.
+            reaped = await procutil.reap_port(port, self.mgr.settings.stop_grace_seconds)
+            if reaped is None or not PortAllocator.is_free(port):
+                self.status = ToolStatus.ERROR
+                self.error = f"port {port} is already in use"
+                return
+            chan.append(f"--- freed port {port} (was held by untracked pid {reaped})")
 
         cmd = registry.substitute(manifest.run, port=port, tool_dir=tool_dir)
         env = self._build_env(manifest, tool_dir, port)
-        chan = self.mgr.logs.channel(self.tool_id, "run")
         chan.append(f"--- starting: {cmd}")
 
         try:
