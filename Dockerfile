@@ -33,7 +33,7 @@ RUN chmod +x /entrypoint.sh
 ENV DATA_DIR=/data \
     TOOLS_DIR=/data/tools \
     DASHBOARD_PORT=8080 \
-    TOOLS_PORT_RANGE=8100-8199 \
+    TOOLS_PORT_RANGE=8100-8149 \
     PUID=99 PGID=100 UMASK=022 \
     SEED_EXAMPLES=true \
     UV_LINK_MODE=copy \

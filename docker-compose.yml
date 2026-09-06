@@ -4,13 +4,13 @@ services:
     container_name: wharf
     ports:
       - "8080:8080"          # dashboard
-      - "8100-8199:8100-8199" # tool port range (must match TOOLS_PORT_RANGE, 1:1)
+      - "8100-8149:8100-8149" # tool port range (must match TOOLS_PORT_RANGE, 1:1)
     volumes:
       - ./sample-data:/data
     environment:
       PUID: "501"   # macOS default user for local dev; Unraid uses 99
       PGID: "20"
-      TOOLS_PORT_RANGE: "8100-8199"
+      TOOLS_PORT_RANGE: "8100-8149"
       SEED_EXAMPLES: "true"
     stop_grace_period: 30s
     restart: unless-stopped

@@ -8,18 +8,18 @@
   <Privileged>false</Privileged>
   <Support/>
   <Project/>
-  <Overview>Single container that hosts and manages all your self-made AI tools (Python and Node web apps). Dashboard to install, start, stop, and tail logs for each tool. Each tool gets a dedicated port from the mapped range. IMPORTANT: the tool port range mapping must be 1:1 same-numbered (8100-8199 to 8100-8199) and must match the TOOLS_PORT_RANGE variable.</Overview>
+  <Overview>Single container that hosts and manages all your self-made AI tools (Python and Node web apps). Dashboard to install, start, stop, and tail logs for each tool. Each tool gets a dedicated port from the mapped range (up to 50 tools at once). IMPORTANT: the tool port range mapping must be 1:1 same-numbered (8100-8149 to 8100-8149) and must match the TOOLS_PORT_RANGE variable.</Overview>
   <Category>Tools: Productivity:</Category>
   <WebUI>http://[IP]:[PORT:8080]</WebUI>
   <ExtraParams>--stop-timeout 30</ExtraParams>
   <PostArgs/>
   <Icon>https://raw.githubusercontent.com/docker-library/docs/master/python/logo.png</Icon>
   <Config Name="Dashboard" Target="8080" Default="8080" Mode="tcp" Description="Wharf dashboard" Type="Port" Display="always" Required="true" Mask="false">8080</Config>
-  <Config Name="Tool port range" Target="8100-8199" Default="8100-8199" Mode="tcp" Description="Ports for the tools themselves. MUST be mapped 1:1 with the same numbers and match TOOLS_PORT_RANGE." Type="Port" Display="always" Required="true" Mask="false">8100-8199</Config>
+  <Config Name="Tool port range" Target="8100-8149" Default="8100-8149" Mode="tcp" Description="Ports for the tools themselves (up to 50 at once). MUST be mapped 1:1 with the same numbers and match TOOLS_PORT_RANGE." Type="Port" Display="always" Required="true" Mask="false">8100-8149</Config>
   <Config Name="Data" Target="/data" Default="/mnt/user/appdata/wharf" Mode="rw" Description="Tools, venvs, logs, and state live here. Drop tool folders into tools/ inside this share." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/wharf</Config>
   <Config Name="PUID" Target="PUID" Default="99" Mode="" Description="File owner uid (Unraid nobody = 99)" Type="Variable" Display="advanced" Required="false" Mask="false">99</Config>
   <Config Name="PGID" Target="PGID" Default="100" Mode="" Description="File owner gid (Unraid users = 100)" Type="Variable" Display="advanced" Required="false" Mask="false">100</Config>
   <Config Name="UMASK" Target="UMASK" Default="022" Mode="" Description="umask for created files" Type="Variable" Display="advanced" Required="false" Mask="false">022</Config>
-  <Config Name="TOOLS_PORT_RANGE" Target="TOOLS_PORT_RANGE" Default="8100-8199" Mode="" Description="Must match the mapped tool port range exactly." Type="Variable" Display="advanced" Required="false" Mask="false">8100-8199</Config>
+  <Config Name="TOOLS_PORT_RANGE" Target="TOOLS_PORT_RANGE" Default="8100-8149" Mode="" Description="Must match the mapped tool port range exactly." Type="Variable" Display="advanced" Required="false" Mask="false">8100-8149</Config>
   <Config Name="SEED_EXAMPLES" Target="SEED_EXAMPLES" Default="true" Mode="" Description="Copy example tools into an empty tools dir on first start" Type="Variable" Display="advanced" Required="false" Mask="false">true</Config>
 </Container>

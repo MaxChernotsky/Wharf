@@ -7,7 +7,7 @@ anywhere Docker runs.
 - **One container** — Python 3.12 + Node 22 + [uv](https://github.com/astral-sh/uv) baked in.
 - **A dashboard** on port `8080` to install, start, stop, restart, and tail logs for every tool.
 - **Each tool** lives in its own folder on the appdata share with its own `.venv` / `node_modules`,
-  gets a dedicated port from a mapped range (`8100–8199`), and is supervised with
+  gets a dedicated port from a mapped range (`8100–8149`, up to 50 tools at once), and is supervised with
   crash-restart policies.
 
 ## Quick start (local)
@@ -262,10 +262,10 @@ Add a container using the template in `unraid/wharf.xml`, or manually:
 | Setting | Value |
 |---|---|
 | Port | `8080 → 8080` (dashboard WebUI) |
-| Port | `8100-8199 → 8100-8199` (tool range — **must be 1:1 same-numbered**) |
+| Port | `8100-8149 → 8100-8149` (tool range, up to 50 tools — **must be 1:1 same-numbered**) |
 | Path | `/data` → `/mnt/user/appdata/wharf` |
 | Variable | `PUID=99`, `PGID=100`, `UMASK=022` |
-| Variable | `TOOLS_PORT_RANGE=8100-8199` |
+| Variable | `TOOLS_PORT_RANGE=8100-8149` |
 | Extra params | `--stop-timeout 30` |
 
 The port range must be mapped 1:1 with the same numbers because the dashboard's
@@ -280,7 +280,7 @@ Tools then live at `/mnt/user/appdata/wharf/tools/<name>/`, editable over SMB.
 | Variable | Default | Purpose |
 |---|---|---|
 | `DASHBOARD_PORT` | `8080` | Dashboard listen port |
-| `TOOLS_PORT_RANGE` | `8100-8199` | Ports assignable to tools |
+| `TOOLS_PORT_RANGE` | `8100-8149` | Ports assignable to tools (50 by default) |
 | `PUID` / `PGID` | `99` / `100` | Owner of files created on `/data` |
 | `UMASK` | `022` | umask for the dashboard and all tools |
 | `SEED_EXAMPLES` | `true` | Copy example tools into an empty tools dir |

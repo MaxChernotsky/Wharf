@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     data_dir: Path = Path("/data")
     tools_dir: Path = Path("/data/tools")
     dashboard_port: int = 8080
-    tools_port_range: str = "8100-8199"
+    tools_port_range: str = "8100-8149"
 
     log_ring_lines: int = 2000
     log_max_bytes: int = 5 * 1024 * 1024
