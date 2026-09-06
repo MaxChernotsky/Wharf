@@ -131,6 +131,54 @@ History and events: `GET /api/tools/<id>/stats`.
 Download a tool's folder as a zip (dependencies and `.git` excluded) from the
 detail page, or `GET /api/tools/<id>/export`.
 
+## Notifications
+
+Wharf can act as a single notification service for every tool it hosts: a
+tool calls Wharf's own API to report something worth telling you about, and
+Wharf relays it to a [Home Assistant](https://www.home-assistant.io/) `notify`
+service — typically the mobile-app notify service HA already sets up for
+your phone once the HA Companion App is installed and paired. Wharf never
+talks to your phone directly; Home Assistant is the actual delivery channel,
+so anything HA's notify service supports (actionable notifications, critical
+alerts on iOS, etc.) works here too via the optional `data` field.
+
+Configure it once from **Settings → Technical → Notifications**:
+
+- **Home Assistant URL** — e.g. `http://homeassistant.local:8123`.
+- **Notify service** — the part after `notify.` for the service you want to
+  target. Find it in HA under **Developer Tools → Actions**, searching for
+  `notify.` (a per-device mobile-app service, e.g. `mobile_app_max_iphone`,
+  reaches one phone; the notify integration also supports notify groups if
+  you want to fan out to several devices).
+- **Long-lived access token** — create one from your HA user profile's
+  **Security** tab. Saved fields round-trip without re-entering the token on
+  every edit; check **Clear saved token** to remove it.
+
+A **Send test notification** button on the same page confirms the whole path
+end to end. All three fields can also be set as environment variables
+(`HA_URL`, `HA_TOKEN`, `HA_NOTIFY_SERVICE`) so a fresh container comes up
+already configured; anything saved from the Settings page persists to
+`/data/state/settings_overrides.json` (plaintext, same trust model as the
+rest of Wharf's unauthenticated dashboard) and wins over the environment.
+
+From a tool, send a notification with:
+
+```bash
+curl -s -X POST http://$HOST/api/tools/<your-tool-id>/notify \
+  -H 'Content-Type: application/json' \
+  -d '{"message": "render finished", "title": "My Tool"}'
+```
+
+`title` and `priority` are optional; `priority` is passed through to HA as
+`data.priority` unless you already set `data.priority` yourself. Any other
+key under `data` is forwarded to HA's notify service as-is — use it for
+things like `data.actions` (actionable notification buttons) or
+`data.push.sound` on iOS. The endpoint returns `502` with the underlying
+error if Home Assistant is unreachable, misconfigured, or rejects the
+request, so a tool can tell the difference between "sent" and "not sent"
+without polling. Recent notifications (across all tools) are visible on the
+Settings page, or at `GET /api/notifications` (add `?tool_id=` to filter).
+
 ## Building a tool through the API (for AI agents)
 
 Wharf is meant to be the *only* place a tool ever runs — including while it's
@@ -159,6 +207,7 @@ All endpoints below are under `http://<host>:8080`.
 | Poll install progress | `GET /api/tools/<id>/install/status` |
 | Start / stop / restart | `POST /api/tools/<id>/{start,stop,restart}` |
 | Turn on auto-restart while iterating | `POST /api/tools/<id>/watch?enabled=true` |
+| Send a notification (relayed to Home Assistant) | `POST /api/tools/<id>/notify` — `{"message", "title"?, "priority"?, "data"?}` — see **Notifications** below |
 | Tail recent logs | `GET /api/logs/<id>/tail?lines=200&source=run` (`source=install` for install output) |
 | Stream logs live | `GET /api/logs/<id>/stream` (SSE) |
 | Full status (port, pid, health, warnings) | `GET /api/tools/<id>` |
@@ -237,6 +286,9 @@ Tools then live at `/mnt/user/appdata/wharf/tools/<name>/`, editable over SMB.
 | `SEED_EXAMPLES` | `true` | Copy example tools into an empty tools dir |
 | `STOP_GRACE_SECONDS` | `10` | SIGTERM→SIGKILL grace per tool |
 | `INSTALL_CONCURRENCY` | `2` | Max parallel install jobs |
+| `HA_URL` | *(none)* | Home Assistant base URL for notification relay — see **Notifications** |
+| `HA_TOKEN` | *(none)* | Home Assistant long-lived access token |
+| `HA_NOTIFY_SERVICE` | *(none)* | Home Assistant notify service to target (the part after `notify.`) |
 
 ## Development
 

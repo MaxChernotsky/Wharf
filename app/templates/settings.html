@@ -147,7 +147,7 @@ max_memory_mb: 0        # optional: restart if RSS exceeds this (0 = unlimited)
    to find. If the project root ends up nested one level inside the zip, that's fine —
    Wharf unwraps a single top-level folder automatically.
 
-Notes: Wharf injects PORT, HOST=0.0.0.0, TOOL_NAME and TOOL_DIR into the environment, prepends the project's .venv/bin (Python) or node_modules/.bin (Node) to PATH, and runs the install command from the project root. Environment variables listed under env: in tool.yml also support the {port} placeholder.
+Notes: Wharf injects PORT, HOST=0.0.0.0, TOOL_NAME and TOOL_DIR into the environment, prepends the project's .venv/bin (Python) or node_modules/.bin (Node) to PATH, and runs the install command from the project root. Environment variables listed under env: in tool.yml also support the {port} placeholder. Wharf also exposes a notification relay: from inside the tool, POST http://localhost:8080/api/tools/$TOOL_NAME/notify (8080 is Wharf's own dashboard port, reachable from every tool over loopback) with a JSON body of {"message", "title"?, "priority"?, "data"?} sends a push notification via Home Assistant if the user has configured one (Settings → Notifications). Use it for things worth telling the user about — a long job finishing, an error needing attention — but don't assume it's configured (treat a non-2xx response as informational, not fatal) and never block the tool's own startup or main request path on it.
 
 After making the changes, verify the server starts, binds 0.0.0.0 on $PORT, and exits cleanly on SIGTERM — then create the zip per step 7.</pre>
       </section>
@@ -204,6 +204,47 @@ After making the changes, verify the server starts, binds 0.0.0.0 on $PORT, and 
           Docker/Unraid port mapping (e.g. <code>-p 8100-8199:8100-8199</code>) — update that
           separately if you widen or move the range.
         </p>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head"><h2>{{ icons.bell(16) }} Notifications — Home Assistant</h2></div>
+        <p class="hint">
+          Tools report notifications to Wharf with <code>POST /api/tools/&lt;id&gt;/notify</code>
+          (body: <code>{"message", "title"?, "priority"?, "data"?}</code>) — Wharf relays them to
+          a Home Assistant <code>notify</code> service, which is what's actually configured to
+          reach your phone (typically a mobile-app notify service HA sets up for you). Find the
+          service name in HA under <strong>Developer Tools → Actions</strong>, searching for
+          <code>notify.</code> — use the part after the dot.
+        </p>
+        <form id="notify-settings-form">
+          <input type="text" name="ha_url" placeholder="http://homeassistant.local:8123" value="{{ settings.ha_url }}">
+          <input type="text" name="ha_notify_service" placeholder="mobile_app_max_iphone" value="{{ settings.ha_notify_service }}">
+          <input type="password" name="ha_token" autocomplete="new-password"
+                 placeholder="{{ 'long-lived access token — saved, leave blank to keep it' if settings.ha_token else 'long-lived access token' }}">
+          {% if settings.ha_token %}
+          <label><input type="checkbox" name="clear_token" value="true"> Clear saved token</label>
+          {% endif %}
+          <div class="form-actions">
+            <button class="btn btn-primary" type="submit" title="Save">{{ icons.check(14) }}<span class="label">Save</span></button>
+            <button class="btn" type="button" id="notify-test-btn" title="Send test notification">{{ icons.bell(14) }}<span class="label">Send test notification</span></button>
+            <span id="notify-settings-msg" class="hint"></span>
+          </div>
+        </form>
+        {% if recent_notifications %}
+        <table class="kv">
+          <tr><th>When</th><th>Tool</th><th>Message</th><th>Result</th></tr>
+          {% for n in recent_notifications %}
+          <tr>
+            <td><code>{{ n.created_at | when }}</code></td>
+            <td>{{ n.tool_id }}</td>
+            <td>{% if n.title %}<strong>{{ n.title }}</strong> — {% endif %}{{ n.message }}</td>
+            <td>{% if n.ok %}{{ icons.check(14) }}{% else %}{{ icons.x(14) }} {{ n.error }}{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </table>
+        {% else %}
+        <p class="hint">No notifications sent yet.</p>
+        {% endif %}
       </section>
 
       <section class="panel">
@@ -360,6 +401,46 @@ linkForm.addEventListener("submit", async (e) => {
       setMsg(msg, ICON_X, d.detail || "link failed");
     }
   } catch { setMsg(msg, ICON_X, "network error"); }
+});
+
+const notifySettingsForm = document.getElementById("notify-settings-form");
+notifySettingsForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const msg = document.getElementById("notify-settings-msg");
+  msg.textContent = "Saving…";
+  try {
+    const res = await fetch("/api/notifications/settings", { method: "POST", body: new FormData(notifySettingsForm) });
+    const d = await res.json();
+    if (res.ok && d.ok) {
+      setMsg(msg, ICON_CHECK, "Saved.");
+      setTimeout(() => location.reload(), 700);
+    } else {
+      setMsg(msg, ICON_X, d.detail || "couldn't save");
+    }
+  } catch { setMsg(msg, ICON_X, "network error"); }
+});
+
+const notifyTestBtn = document.getElementById("notify-test-btn");
+const notifyTestBtnHtml = notifyTestBtn.innerHTML;
+notifyTestBtn.addEventListener("click", async () => {
+  const msg = document.getElementById("notify-settings-msg");
+  notifyTestBtn.disabled = true;
+  notifyTestBtn.textContent = "Sending…";
+  msg.textContent = "";
+  try {
+    const res = await fetch("/api/notifications/test", { method: "POST" });
+    const d = await res.json();
+    if (res.ok && d.ok) {
+      setMsg(msg, ICON_CHECK, "Test notification sent — check your phone.");
+    } else {
+      setMsg(msg, ICON_X, d.error || d.detail || "test failed");
+    }
+  } catch {
+    setMsg(msg, ICON_X, "network error");
+  } finally {
+    notifyTestBtn.disabled = false;
+    notifyTestBtn.innerHTML = notifyTestBtnHtml;
+  }
 });
 
 const menubarBtn = document.getElementById("menubar-launch");

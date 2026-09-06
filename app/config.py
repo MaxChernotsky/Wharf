@@ -11,7 +11,7 @@ from pathlib import Path
 from pydantic_settings import BaseSettings
 
 # fields the settings UI is allowed to persist over the environment defaults
-OVERRIDABLE_FIELDS = {"tools_port_range"}
+OVERRIDABLE_FIELDS = {"tools_port_range", "ha_url", "ha_token", "ha_notify_service"}
 
 
 class Settings(BaseSettings):
@@ -32,6 +32,13 @@ class Settings(BaseSettings):
     upload_max_zip_bytes: int = 512 * 1024 * 1024
     upload_max_extracted_bytes: int = 2 * 1024 * 1024 * 1024
     upload_max_files: int = 50_000
+
+    # Home Assistant notify relay — tools report notifications to Wharf
+    # (POST /api/tools/<id>/notify) and Wharf forwards them to this HA
+    # notify service, which is what's actually wired up to reach a phone.
+    ha_url: str = ""              # e.g. http://homeassistant.local:8123
+    ha_token: str = ""            # long-lived access token
+    ha_notify_service: str = ""   # the part after "notify." — e.g. mobile_app_max_iphone
 
     @property
     def logs_dir(self) -> Path:
@@ -84,6 +91,7 @@ def save_overrides(state_dir: Path, **fields: str) -> None:
 def get_settings() -> Settings:
     settings = Settings()
     overrides = load_overrides(settings.state_dir)
-    if "tools_port_range" in overrides:
-        settings.tools_port_range = overrides["tools_port_range"]
+    for field in OVERRIDABLE_FIELDS:
+        if field in overrides:
+            setattr(settings, field, overrides[field])
     return settings

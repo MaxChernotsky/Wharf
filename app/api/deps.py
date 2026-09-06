@@ -8,6 +8,7 @@ from ..config import Settings
 from ..installer import Installer
 from ..logbuf import LogHub
 from ..manager import ProcessManager
+from ..notifications import NotificationHub
 
 
 def get_manager(request: Request) -> ProcessManager:
@@ -24,3 +25,7 @@ def get_loghub(request: Request) -> LogHub:
 
 def get_config(request: Request) -> Settings:
     return request.app.state.settings
+
+
+def get_notifications(request: Request) -> NotificationHub:
+    return request.app.state.notifications

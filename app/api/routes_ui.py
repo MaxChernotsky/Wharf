@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 import yaml
@@ -13,7 +14,8 @@ from pydantic import ValidationError
 from .. import registry
 from ..manager import ProcessManager
 from ..models import Manifest, ToolStatus
-from .deps import get_config, get_installer, get_manager
+from ..notifications import NotificationHub
+from .deps import get_config, get_installer, get_manager, get_notifications
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
@@ -51,6 +53,15 @@ def _spark_points(values, w: int = 60, h: int = 16) -> str:
 
 
 templates.env.filters["spark_points"] = _spark_points
+
+
+def _when(epoch):
+    if not epoch:
+        return ""
+    return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(epoch))
+
+
+templates.env.filters["when"] = _when
 
 ACTIVE_STATUSES = {ToolStatus.RUNNING, ToolStatus.UNHEALTHY, ToolStatus.STARTING, ToolStatus.STOPPING}
 
@@ -305,10 +316,16 @@ def settings_page(
     request: Request,
     mgr: ProcessManager = Depends(get_manager),
     settings=Depends(get_config),
+    notifications: NotificationHub = Depends(get_notifications),
 ):
     mgr.rescan()
     return templates.TemplateResponse(
         request,
         "settings.html",
-        _ctx(request, mgr, settings=settings, assignments=mgr.ports.assigned),
+        _ctx(
+            request, mgr,
+            settings=settings,
+            assignments=mgr.ports.assigned,
+            recent_notifications=notifications.recent(10),
+        ),
     )

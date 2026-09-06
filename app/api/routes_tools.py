@@ -20,7 +20,8 @@ from .. import config, export, gitops, registry, uploads
 from ..installer import Installer
 from ..manager import ProcessManager
 from ..models import TOOL_ID_RE, Manifest, ToolStatus
-from .deps import get_config, get_installer, get_manager
+from ..notifications import NotificationHub
+from .deps import get_config, get_installer, get_manager, get_notifications
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api")
@@ -28,6 +29,13 @@ router = APIRouter(prefix="/api")
 
 class FileWrite(BaseModel):
     content: str
+
+
+class NotifyRequest(BaseModel):
+    message: str
+    title: str | None = None
+    priority: str | None = None
+    data: dict | None = None
 
 
 def _require_tool(mgr: ProcessManager, tool_id: str):
@@ -73,6 +81,26 @@ async def restart_tool(tool_id: str, mgr: ProcessManager = Depends(get_manager))
     if not ok:
         raise HTTPException(409, msg)
     return {"ok": True, "message": msg}
+
+
+@router.post("/tools/{tool_id}/notify")
+async def notify_tool(
+    tool_id: str,
+    body: NotifyRequest,
+    mgr: ProcessManager = Depends(get_manager),
+    hub: NotificationHub = Depends(get_notifications),
+):
+    """A tool's way of telling Wharf it has something to say — Wharf relays
+    it to the Home Assistant notify service configured on the Settings page
+    (see app/notifications.py), which is what's actually wired up to reach a
+    phone. Wharf itself never talks to a phone directly."""
+    _require_tool(mgr, tool_id)
+    record = await hub.notify(
+        tool_id, body.message, title=body.title, priority=body.priority, data=body.data,
+    )
+    if not record.ok:
+        raise HTTPException(502, record.error or "notification failed")
+    return {"ok": True, "id": record.id}
 
 
 @router.post("/tools/{tool_id}/install")

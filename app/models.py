@@ -97,3 +97,17 @@ class ToolInfo(BaseModel):
         if self.manifest and self.manifest.name:
             return self.manifest.name
         return self.id
+
+
+class NotificationRecord(BaseModel):
+    """One tool-reported notification and the outcome of relaying it to Home
+    Assistant — kept in a small on-disk history for the Settings page."""
+
+    id: str
+    tool_id: str
+    title: str | None = None
+    message: str
+    priority: str | None = None
+    ok: bool
+    error: str | None = None
+    created_at: float
