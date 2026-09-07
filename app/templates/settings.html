@@ -207,6 +207,49 @@ After making the changes, verify the server starts, binds 0.0.0.0 on $PORT, and 
       </section>
 
       <section class="panel">
+        <div class="panel-head"><h2>{{ icons.lock(16) }} Authentication</h2></div>
+        <p class="hint">
+          Off by default — the dashboard stays fully open until a password is set here,
+          same as the rest of Wharf's unauthenticated trust model. Once set, every browser
+          and API request must sign in or present a token, <strong>except</strong> requests
+          from the same host as Wharf itself (tools already call Wharf's notify endpoint
+          over loopback) and <code>/launch/&lt;tool&gt;</code> (kept open for bookmarks and
+          Shortcuts). This does not protect each tool's own port
+          ({{ settings.tools_port_range }}) — only Wharf's dashboard/API on
+          {{ settings.dashboard_port }}.
+        </p>
+        <form id="auth-password-form">
+          {% if auth_configured %}
+          <input type="password" name="current_password" placeholder="current password" autocomplete="current-password" required>
+          {% endif %}
+          <input type="password" name="new_password" placeholder="new password (min. 8 characters)" autocomplete="new-password" minlength="8" {{ "required" if not auth_configured else "" }}>
+          <div class="form-actions">
+            <button class="btn btn-primary" type="submit">{{ icons.check(14) }}<span class="label">{{ "Change password" if auth_configured else "Set password" }}</span></button>
+            {% if auth_configured %}
+            <button class="btn btn-danger" type="button" id="auth-disable-btn">{{ icons.x(14) }}<span class="label">Disable login</span></button>
+            {% endif %}
+            <span id="auth-password-msg" class="hint"></span>
+          </div>
+        </form>
+        {% if auth_configured %}
+        <div class="form-actions" style="margin-top: 1rem;">
+          <button class="btn" id="auth-token-btn" title="Regenerate API token">{{ icons.rotate_cw(14) }}<span class="label">{{ "Regenerate" if has_token else "Generate" }} API token</span></button>
+          {% if has_token %}
+          <button class="btn" id="auth-token-clear-btn">{{ icons.x(14) }}<span class="label">Clear token</span></button>
+          {% endif %}
+          <button class="btn" id="auth-signout-all-btn">{{ icons.lock(14) }}<span class="label">Sign out everywhere</span></button>
+        </div>
+        <span id="auth-token-msg" class="hint"></span>
+        <p class="hint">
+          The API token lets a script or remote agent authenticate with
+          <code>Authorization: Bearer &lt;token&gt;</code> instead of logging in — needed for
+          the build-a-tool-through-the-API workflow (see the main README) when it isn't
+          running on this host. Shown only once, right after it's generated.
+        </p>
+        {% endif %}
+      </section>
+
+      <section class="panel">
         <div class="panel-head"><h2>{{ icons.bell(16) }} Notifications — Home Assistant</h2></div>
         <p class="hint">
           Tools report notifications to Wharf with <code>POST /api/tools/&lt;id&gt;/notify</code>
@@ -402,6 +445,85 @@ linkForm.addEventListener("submit", async (e) => {
     }
   } catch { setMsg(msg, ICON_X, "network error"); }
 });
+
+const authPasswordForm = document.getElementById("auth-password-form");
+authPasswordForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const msg = document.getElementById("auth-password-msg");
+  msg.textContent = "Saving…";
+  try {
+    const res = await fetch("/api/auth/password", { method: "POST", body: new FormData(authPasswordForm) });
+    const d = await res.json();
+    if (res.ok && d.ok) {
+      setMsg(msg, ICON_CHECK, "Saved. Reloading…");
+      setTimeout(() => location.reload(), 700);
+    } else {
+      setMsg(msg, ICON_X, d.detail || "couldn't save");
+    }
+  } catch { setMsg(msg, ICON_X, "network error"); }
+});
+
+const authDisableBtn = document.getElementById("auth-disable-btn");
+if (authDisableBtn) {
+  authDisableBtn.addEventListener("click", async () => {
+    const msg = document.getElementById("auth-password-msg");
+    const current = authPasswordForm.querySelector("[name=current_password]").value;
+    if (!current) { setMsg(msg, ICON_X, "enter your current password above first"); return; }
+    if (!confirm("Disable login protection? The dashboard becomes fully open again.")) return;
+    try {
+      const res = await fetch("/api/auth/password", {
+        method: "POST",
+        body: new URLSearchParams({ current_password: current, disable: "true" }),
+      });
+      const d = await res.json();
+      if (res.ok && d.ok) { location.href = "/"; }
+      else setMsg(msg, ICON_X, d.detail || "couldn't disable");
+    } catch { setMsg(msg, ICON_X, "network error"); }
+  });
+}
+
+const authTokenBtn = document.getElementById("auth-token-btn");
+if (authTokenBtn) {
+  authTokenBtn.addEventListener("click", async () => {
+    const msg = document.getElementById("auth-token-msg");
+    msg.textContent = "Generating…";
+    try {
+      const res = await fetch("/api/auth/token/regenerate", { method: "POST" });
+      const d = await res.json();
+      if (res.ok && d.ok) {
+        try { await navigator.clipboard.writeText(d.token); } catch {}
+        setMsg(msg, ICON_CHECK, "Copied to clipboard — shown only this once: " + d.token);
+      } else {
+        setMsg(msg, ICON_X, d.detail || "couldn't generate token");
+      }
+    } catch { setMsg(msg, ICON_X, "network error"); }
+  });
+}
+
+const authTokenClearBtn = document.getElementById("auth-token-clear-btn");
+if (authTokenClearBtn) {
+  authTokenClearBtn.addEventListener("click", async () => {
+    const msg = document.getElementById("auth-token-msg");
+    try {
+      const res = await fetch("/api/auth/token/clear", { method: "POST" });
+      const d = await res.json();
+      if (res.ok && d.ok) { setMsg(msg, ICON_CHECK, "Cleared."); setTimeout(() => location.reload(), 700); }
+      else setMsg(msg, ICON_X, d.detail || "couldn't clear");
+    } catch { setMsg(msg, ICON_X, "network error"); }
+  });
+}
+
+const authSignoutAllBtn = document.getElementById("auth-signout-all-btn");
+if (authSignoutAllBtn) {
+  authSignoutAllBtn.addEventListener("click", async () => {
+    if (!confirm("Sign out of every browser session, including this one?")) return;
+    try {
+      await fetch("/api/auth/signout-all", { method: "POST" });
+    } finally {
+      location.href = "/login";
+    }
+  });
+}
 
 const notifySettingsForm = document.getElementById("notify-settings-form");
 notifySettingsForm.addEventListener("submit", async (e) => {

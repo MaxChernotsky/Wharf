@@ -22,4 +22,5 @@
   <Config Name="UMASK" Target="UMASK" Default="022" Mode="" Description="umask for created files" Type="Variable" Display="advanced" Required="false" Mask="false">022</Config>
   <Config Name="TOOLS_PORT_RANGE" Target="TOOLS_PORT_RANGE" Default="8100-8149" Mode="" Description="Must match the mapped tool port range exactly." Type="Variable" Display="advanced" Required="false" Mask="false">8100-8149</Config>
   <Config Name="SEED_EXAMPLES" Target="SEED_EXAMPLES" Default="true" Mode="" Description="Copy example tools into an empty tools dir on first start" Type="Variable" Display="advanced" Required="false" Mask="false">true</Config>
+  <Config Name="AUTH_PASSWORD" Target="AUTH_PASSWORD" Default="" Mode="" Description="Sets the dashboard login password on first boot (recommended if exposing Wharf externally). Leave blank to keep the dashboard unauthenticated." Type="Variable" Display="advanced" Required="false" Mask="true"></Config>
 </Container>

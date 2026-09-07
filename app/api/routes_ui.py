@@ -327,5 +327,7 @@ def settings_page(
             settings=settings,
             assignments=mgr.ports.assigned,
             recent_notifications=notifications.recent(10),
+            auth_configured=bool(settings.auth_password_hash),
+            has_token=bool(settings.auth_api_token),
         ),
     )

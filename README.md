@@ -131,6 +131,44 @@ History and events: `GET /api/tools/<id>/stats`.
 Download a tool's folder as a zip (dependencies and `.git` excluded) from the
 detail page, or `GET /api/tools/<id>/export`.
 
+## Authentication
+
+Wharf's dashboard and API are unauthenticated by default. Since you can start,
+delete, and run arbitrary code for every tool from here, that's fine on a
+trusted LAN but worth locking down before exposing Wharf externally.
+
+Set a password from **Settings → Technical → Authentication** (or the
+`AUTH_PASSWORD` environment variable, hashed into settings on first boot —
+same bootstrap-then-persist pattern as the notify config below) and a
+`/login` page starts gating every request. Three things stay reachable
+without logging in:
+
+- **Requests from the same host as Wharf itself** — tools already call
+  Wharf's own API over loopback (e.g. the notify relay below), so nothing
+  about existing tools needs to change.
+- **`/launch/<tool>`** — kept open so a bookmark or iOS Shortcut that hits it
+  keeps working.
+- **`/healthz`** — the container healthcheck.
+
+For everything else, a browser needs a signed-in session; a script or remote
+agent (e.g. one building a tool through the API from off-host — see
+**Building a tool through the API** below) can instead send
+`Authorization: Bearer <token>` using the API token generated on the same
+Settings page.
+
+This only protects Wharf's own dashboard/API on `DASHBOARD_PORT`. Each
+hosted tool is still its own unauthenticated web server on its assigned port
+— Wharf's login doesn't extend to them.
+
+### Forgot the password?
+
+There's no in-app recovery flow by design — a single-user, self-hosted tool
+has no email/SMS to recover through. To reset it: on the appdata share, edit
+`state/settings_overrides.json` (e.g. `/mnt/user/appdata/wharf/state/settings_overrides.json`
+on Unraid) and remove the `auth_password_hash` key, then restart the
+container. That drops the dashboard back to unauthenticated, exactly like a
+fresh install — set a new password from Settings once it's back up.
+
 ## Notifications
 
 Wharf can act as a single notification service for every tool it hosts: a
@@ -289,6 +327,7 @@ Tools then live at `/mnt/user/appdata/wharf/tools/<name>/`, editable over SMB.
 | `HA_URL` | *(none)* | Home Assistant base URL for notification relay — see **Notifications** |
 | `HA_TOKEN` | *(none)* | Home Assistant long-lived access token |
 | `HA_NOTIFY_SERVICE` | *(none)* | Home Assistant notify service to target (the part after `notify.`) |
+| `AUTH_PASSWORD` | *(none)* | Bootstraps the dashboard login on first boot — see **Authentication** |
 
 ## Development
 

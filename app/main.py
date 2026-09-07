@@ -9,7 +9,8 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from .api import routes_logs, routes_notifications, routes_tools, routes_ui
+from .api import routes_auth, routes_logs, routes_notifications, routes_tools, routes_ui
+from .auth import AuthMiddleware, LoginLockout, SessionSigner
 from .config import get_settings
 from .gitops import UpdateMonitor
 from .installer import Installer
@@ -49,6 +50,8 @@ async def lifespan(app: FastAPI):
     app.state.manager = manager
     app.state.installer = installer
     app.state.notifications = notifications
+    app.state.session_signer = SessionSigner(settings.state_dir)
+    app.state.login_lockout = LoginLockout()
 
     await manager.boot()
     monitor = ResourceMonitor(manager)
@@ -71,10 +74,13 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Wharf", lifespan=lifespan)
+app.add_middleware(AuthMiddleware)
 
 app.include_router(routes_tools.router)
 app.include_router(routes_logs.router)
 app.include_router(routes_notifications.router)
+app.include_router(routes_auth.router)
+app.include_router(routes_auth.settings_router)
 app.include_router(routes_ui.router)
 app.mount(
     "/static",

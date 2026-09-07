@@ -11,7 +11,10 @@ from pathlib import Path
 from pydantic_settings import BaseSettings
 
 # fields the settings UI is allowed to persist over the environment defaults
-OVERRIDABLE_FIELDS = {"tools_port_range", "ha_url", "ha_token", "ha_notify_service"}
+OVERRIDABLE_FIELDS = {
+    "tools_port_range", "ha_url", "ha_token", "ha_notify_service",
+    "auth_password_hash", "auth_api_token",
+}
 
 
 class Settings(BaseSettings):
@@ -39,6 +42,12 @@ class Settings(BaseSettings):
     ha_url: str = ""              # e.g. http://homeassistant.local:8123
     ha_token: str = ""            # long-lived access token
     ha_notify_service: str = ""   # the part after "notify." — e.g. mobile_app_max_iphone
+
+    # Dashboard login — see app/auth.py. Empty hash = no login wall (default).
+    auth_password: str = ""       # bootstrap only: env var AUTH_PASSWORD, hashed into
+                                   # auth_password_hash on first boot, never itself persisted
+    auth_password_hash: str = ""  # scrypt hash "salt$digest", settings-page editable
+    auth_api_token: str = ""      # bearer token for remote/API access when not on loopback
 
     @property
     def logs_dir(self) -> Path:
@@ -94,4 +103,9 @@ def get_settings() -> Settings:
     for field in OVERRIDABLE_FIELDS:
         if field in overrides:
             setattr(settings, field, overrides[field])
+    if settings.auth_password and not settings.auth_password_hash:
+        from . import auth  # local import: auth.py has no reason to import config.py back
+
+        settings.auth_password_hash = auth.hash_password(settings.auth_password)
+        save_overrides(settings.state_dir, auth_password_hash=settings.auth_password_hash)
     return settings
