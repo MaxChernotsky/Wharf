@@ -16,8 +16,9 @@ anywhere Docker runs.
 docker compose up --build
 ```
 
-Open http://localhost:8080. A single example tool — `port-scanner` — is seeded on
-first run and starts immediately; it scans every localhost port and reports what's
+Open http://localhost:8080. A single example tool — `port-scanner` — is seeded
+automatically (on first run, and on any later start where it's missing) and
+starts immediately; it scans every localhost port and reports what's
 listening on each.
 
 ## Adding a tool

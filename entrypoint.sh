@@ -32,11 +32,19 @@ done
 find "$DATA_DIR/tools" -mindepth 1 -maxdepth 1 ! -user "$PUID" -exec chown -R "${PUID}:${PGID}" {} + 2>/dev/null || true
 find "$DATA_DIR/logs" "$DATA_DIR/state" -mindepth 1 ! -user "$PUID" -exec chown "${PUID}:${PGID}" {} + 2>/dev/null || true
 
-# Seed example tools on first run.
-if [ "${SEED_EXAMPLES:-true}" = "true" ] && [ -z "$(ls -A "$DATA_DIR/tools" 2>/dev/null)" ]; then
-    echo "[entrypoint] seeding example tools"
-    cp -r /opt/hub/examples/. "$DATA_DIR/tools/"
-    chown -R "${PUID}:${PGID}" "$DATA_DIR/tools"
+# Seed example tools that aren't already present. Runs on every start (not just
+# when tools/ is empty) so tools added to examples/ later still show up for
+# existing installs, without touching tools a user already has.
+if [ "${SEED_EXAMPLES:-true}" = "true" ]; then
+    for example_dir in /opt/hub/examples/*/; do
+        [ -d "$example_dir" ] || continue
+        example_name="$(basename "$example_dir")"
+        if [ ! -e "$DATA_DIR/tools/$example_name" ]; then
+            echo "[entrypoint] seeding example tool: $example_name"
+            cp -r "$example_dir" "$DATA_DIR/tools/$example_name"
+            chown -R "${PUID}:${PGID}" "$DATA_DIR/tools/$example_name"
+        fi
+    done
 fi
 
 echo "[entrypoint] starting dashboard on :${DASHBOARD_PORT:-8080} as uid ${PUID}"
