@@ -407,6 +407,8 @@ input[type=file] { color: var(--muted); }
 .form-actions { display: flex; align-items: center; gap: 0.8rem; margin-top: 0.7rem; }
 .input-row { display: flex; align-items: center; gap: 0.5rem; }
 .input-row input[type=text] { flex: 1; margin-top: 0; }
+#notify-device-table input[type=text] { margin-top: 0; }
+#notify-device-table td:nth-child(3), #notify-device-table td:nth-child(4) { width: 1%; white-space: nowrap; text-align: center; }
 .hint { color: var(--muted); font-size: 0.85rem; }
 
 .dropzone {

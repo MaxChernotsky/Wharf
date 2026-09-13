@@ -80,6 +80,8 @@ idle_stop_minutes: 30       # stop after N minutes with no open connections (0 =
 max_memory_mb: 2048         # restart if the process tree exceeds this RSS (0 = unlimited)
 watch: false                 # dev mode: restart automatically when files in the folder change
 watch_debounce_s: 2          # quiet period after the last change before restarting
+notify_devices: []           # device ids from Settings → Notifications that this tool's
+                              # /notify calls go to by default (empty = use the Settings default)
 ```
 
 Idle-stopped tools wake on demand: `http://<host>:8080/launch/<tool>` starts the
@@ -183,19 +185,22 @@ alerts on iOS, etc.) works here too via the optional `data` field.
 Configure it once from **Settings → Technical → Notifications**:
 
 - **Home Assistant URL** — e.g. `http://homeassistant.local:8123`.
-- **Notify service** — the part after `notify.` for the service you want to
-  target. Find it in HA under **Developer Tools → Actions**, searching for
-  `notify.` (a per-device mobile-app service, e.g. `mobile_app_max_iphone`,
-  reaches one phone; the notify integration also supports notify groups if
-  you want to fan out to several devices).
 - **Long-lived access token** — create one from your HA user profile's
   **Security** tab. Saved fields round-trip without re-entering the token on
   every edit; check **Clear saved token** to remove it.
+- **Devices** — add one row per notify target: a **label** (whatever you
+  want to call it) and a **notify service**, the part after `notify.` for
+  the HA service that reaches it. Find service names in HA under
+  **Developer Tools → Actions**, searching for `notify.` — each per-device
+  mobile-app service (e.g. `mobile_app_max_iphone`) reaches one phone. Check
+  **Default** on the device(s) that should get a notification when neither
+  the tool nor the notify call itself names one.
 
 A **Send test notification** button on the same page confirms the whole path
-end to end. All three fields can also be set as environment variables
-(`HA_URL`, `HA_TOKEN`, `HA_NOTIFY_SERVICE`) so a fresh container comes up
-already configured; anything saved from the Settings page persists to
+end to end. `HA_URL` and `HA_TOKEN` can be set as environment variables so a
+fresh container comes up partly configured; `HA_NOTIFY_SERVICE` bootstraps a
+single device the same way on first boot (add more from the Settings page
+afterwards). Anything saved from the Settings page persists to
 `/data/state/settings_overrides.json` (plaintext, same trust model as the
 rest of Wharf's unauthenticated dashboard) and wins over the environment.
 
@@ -207,15 +212,20 @@ curl -s -X POST http://$HOST/api/tools/<your-tool-id>/notify \
   -d '{"message": "render finished", "title": "My Tool"}'
 ```
 
-`title` and `priority` are optional; `priority` is passed through to HA as
-`data.priority` unless you already set `data.priority` yourself. Any other
-key under `data` is forwarded to HA's notify service as-is — use it for
-things like `data.actions` (actionable notification buttons) or
-`data.push.sound` on iOS. The endpoint returns `502` with the underlying
-error if Home Assistant is unreachable, misconfigured, or rejects the
-request, so a tool can tell the difference between "sent" and "not sent"
-without polling. Recent notifications (across all tools) are visible on the
-Settings page, or at `GET /api/notifications` (add `?tool_id=` to filter).
+Which device(s) receive it, in order: the request's own `device` (one id) or
+`devices` (a list of ids) field, else the tool's own `notify_devices` in
+`tool.yml` (also settable from a checklist on the tool's detail page), else
+the default device(s) checked on the Settings page. `title` and `priority`
+are optional; `priority` is passed through to HA as `data.priority` unless
+you already set `data.priority` yourself. Any other key under `data` is
+forwarded to HA's notify service as-is — use it for things like
+`data.actions` (actionable notification buttons) or `data.push.sound` on
+iOS. The endpoint returns `502` with the underlying error if Home Assistant
+is unreachable, misconfigured, or rejects the request, so a tool can tell
+the difference between "sent" and "not sent" without polling. Recent
+notifications (across all tools, with which device(s) each one went to) are
+visible on the Settings page, or at `GET /api/notifications` (add
+`?tool_id=` to filter).
 
 ## Building a tool through the API (for AI agents)
 
@@ -245,7 +255,8 @@ All endpoints below are under `http://<host>:8080`.
 | Poll install progress | `GET /api/tools/<id>/install/status` |
 | Start / stop / restart | `POST /api/tools/<id>/{start,stop,restart}` |
 | Turn on auto-restart while iterating | `POST /api/tools/<id>/watch?enabled=true` |
-| Send a notification (relayed to Home Assistant) | `POST /api/tools/<id>/notify` — `{"message", "title"?, "priority"?, "data"?}` — see **Notifications** below |
+| Send a notification (relayed to Home Assistant) | `POST /api/tools/<id>/notify` — `{"message", "title"?, "priority"?, "data"?, "device"?, "devices"?}` — see **Notifications** below |
+| Set which notification device(s) a tool defaults to | `POST /api/tools/<id>/notify-devices` — `{"devices": [id, ...]}` |
 | Tail recent logs | `GET /api/logs/<id>/tail?lines=200&source=run` (`source=install` for install output) |
 | Stream logs live | `GET /api/logs/<id>/stream` (SSE) |
 | Full status (port, pid, health, warnings) | `GET /api/tools/<id>` |
@@ -326,7 +337,7 @@ Tools then live at `/mnt/user/appdata/wharf/tools/<name>/`, editable over SMB.
 | `INSTALL_CONCURRENCY` | `2` | Max parallel install jobs |
 | `HA_URL` | *(none)* | Home Assistant base URL for notification relay — see **Notifications** |
 | `HA_TOKEN` | *(none)* | Home Assistant long-lived access token |
-| `HA_NOTIFY_SERVICE` | *(none)* | Home Assistant notify service to target (the part after `notify.`) |
+| `HA_NOTIFY_SERVICE` | *(none)* | Bootstraps a single Home Assistant notify device on first boot — add more from **Settings → Notifications** afterwards |
 | `AUTH_PASSWORD` | *(none)* | Bootstraps the dashboard login on first boot — see **Authentication** |
 
 ## Development

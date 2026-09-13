@@ -7,6 +7,7 @@ can show what was sent and whether it worked."""
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -34,11 +35,22 @@ class NotificationHub:
 
     def configured(self) -> bool:
         s = self.settings
-        return bool(s.ha_url and s.ha_token and s.ha_notify_service)
+        return bool(s.ha_url and s.ha_token and s.ha_notify_devices)
 
     def recent(self, limit: int = 50, tool_id: str | None = None) -> list[NotificationRecord]:
         items = self._history if tool_id is None else [r for r in self._history if r.tool_id == tool_id]
         return list(reversed(items[-limit:]))
+
+    def _resolve_devices(self, requested: list[str] | None, tool_devices: list[str] | None) -> list[dict]:
+        """Priority: an explicit per-call `devices` list, then a tool's own
+        `notify_devices` (tool.yml), then the Settings-page default devices,
+        then — so a single configured device works with zero extra setup —
+        every configured device."""
+        ids = requested or tool_devices or self.settings.ha_default_device_ids or [
+            d["id"] for d in self.settings.ha_notify_devices
+        ]
+        by_id = {d["id"]: d for d in self.settings.ha_notify_devices}
+        return [by_id[i] for i in ids if i in by_id]
 
     async def notify(
         self,
@@ -47,14 +59,35 @@ class NotificationHub:
         title: str | None = None,
         priority: str | None = None,
         data: dict | None = None,
+        devices: list[str] | None = None,
+        tool_devices: list[str] | None = None,
     ) -> NotificationRecord:
-        ok, error = await self._send(message, title, priority, data)
+        targets = self._resolve_devices(devices, tool_devices)
+        if not (self.settings.ha_url and self.settings.ha_token):
+            ok, error, sent = False, (
+                "Home Assistant notifications aren't configured — set a URL and "
+                "token on the Settings page"
+            ), []
+        elif not targets:
+            ok, error, sent = False, (
+                "no notification device configured or selected — add one on the "
+                "Settings page"
+            ), []
+        else:
+            results = await asyncio.gather(
+                *(self._send(d["service"], message, title, priority, data) for d in targets)
+            )
+            ok = all(r_ok for r_ok, _ in results)
+            errors = [f"{d['label']}: {r_err}" for d, (r_ok, r_err) in zip(targets, results) if not r_ok]
+            error = "; ".join(errors) or None
+            sent = [d["label"] for d in targets]
         record = NotificationRecord(
             id=uuid.uuid4().hex,
             tool_id=tool_id,
             title=title,
             message=message,
             priority=priority,
+            devices=sent,
             ok=ok,
             error=error,
             created_at=time.time(),
@@ -65,15 +98,9 @@ class NotificationHub:
         return record
 
     async def _send(
-        self, message: str, title: str | None, priority: str | None, data: dict | None,
+        self, service: str, message: str, title: str | None, priority: str | None, data: dict | None,
     ) -> tuple[bool, str | None]:
         s = self.settings
-        if not self.configured():
-            return False, (
-                "Home Assistant notifications aren't configured — set a URL, "
-                "token, and notify service on the Settings page"
-            )
-
         payload: dict = {"message": message}
         if title:
             payload["title"] = title
@@ -83,7 +110,7 @@ class NotificationHub:
         if ha_data:
             payload["data"] = ha_data
 
-        url = f"{s.ha_url.rstrip('/')}/api/services/notify/{s.ha_notify_service}"
+        url = f"{s.ha_url.rstrip('/')}/api/services/notify/{service}"
         headers = {"Authorization": f"Bearer {s.ha_token}"}
         try:
             async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT_S, transport=self._transport) as client:

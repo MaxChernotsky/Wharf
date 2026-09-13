@@ -112,9 +112,7 @@
           <h2>Prep an existing tool with AI</h2>
           <button class="btn" id="copy-prompt" title="Copy prompt">{{ icons.copy(14) }}<span class="label">Copy prompt</span></button>
         </div>
-        <p class="hint">Paste this into Claude Code (or any AI assistant) while working on a tool's
-           repo — it makes the tool Wharf-ready.</p>
-        <pre id="ai-prompt">Make this project ready to run inside Wharf, a dashboard that hosts many small web tools as supervised subprocesses. Requirements:
+        <pre id="ai-prompt" hidden>Make this project ready to run inside Wharf, a dashboard that hosts many small web tools as supervised subprocesses. Requirements:
 
 1. The web server must bind 0.0.0.0 (never 127.0.0.1/localhost) and take its port from the PORT environment variable, with a sensible fallback for local dev. Wharf also supports a {port} placeholder in the run command if a CLI flag is easier.
 2. All dependencies must be declared: requirements.txt or pyproject.toml for Python (runs on Python 3.12), package.json (plus a lockfile if possible) for Node (runs on Node 22). No globally installed packages.
@@ -147,7 +145,7 @@ max_memory_mb: 0        # optional: restart if RSS exceeds this (0 = unlimited)
    to find. If the project root ends up nested one level inside the zip, that's fine —
    Wharf unwraps a single top-level folder automatically.
 
-Notes: Wharf injects PORT, HOST=0.0.0.0, TOOL_NAME and TOOL_DIR into the environment, prepends the project's .venv/bin (Python) or node_modules/.bin (Node) to PATH, and runs the install command from the project root. Environment variables listed under env: in tool.yml also support the {port} placeholder. Wharf also exposes a notification relay: from inside the tool, POST http://localhost:8080/api/tools/$TOOL_NAME/notify (8080 is Wharf's own dashboard port, reachable from every tool over loopback) with a JSON body of {"message", "title"?, "priority"?, "data"?} sends a push notification via Home Assistant if the user has configured one (Settings → Notifications). Use it for things worth telling the user about — a long job finishing, an error needing attention — but don't assume it's configured (treat a non-2xx response as informational, not fatal) and never block the tool's own startup or main request path on it.
+Notes: Wharf injects PORT, HOST=0.0.0.0, TOOL_NAME and TOOL_DIR into the environment, prepends the project's .venv/bin (Python) or node_modules/.bin (Node) to PATH, and runs the install command from the project root. Environment variables listed under env: in tool.yml also support the {port} placeholder. Wharf also exposes a notification relay: from inside the tool, POST http://localhost:8080/api/tools/$TOOL_NAME/notify (8080 is Wharf's own dashboard port, reachable from every tool over loopback) with a JSON body of {"message", "title"?, "priority"?, "data"?, "device"?, "devices"?} sends a push notification via Home Assistant if the user has configured one or more devices (Settings → Notifications). By default it goes to this tool's notify_devices (set in tool.yml) or the Settings-page default; pass "device" (one id) or "devices" (a list of ids) in the request to target specific device(s) for that call instead. Use it for things worth telling the user about — a long job finishing, an error needing attention — but don't assume it's configured (treat a non-2xx response as informational, not fatal) and never block the tool's own startup or main request path on it.
 
 After making the changes, verify the server starts, binds 0.0.0.0 on $PORT, and exits cleanly on SIGTERM — then create the zip per step 7.</pre>
       </section>
@@ -253,15 +251,23 @@ After making the changes, verify the server starts, binds 0.0.0.0 on $PORT, and 
         <div class="panel-head"><h2>{{ icons.bell(16) }} Notifications — Home Assistant</h2></div>
         <p class="hint">
           Tools report notifications to Wharf with <code>POST /api/tools/&lt;id&gt;/notify</code>
-          (body: <code>{"message", "title"?, "priority"?, "data"?}</code>) — Wharf relays them to
-          a Home Assistant <code>notify</code> service, which is what's actually configured to
-          reach your phone (typically a mobile-app notify service HA sets up for you). Find the
-          service name in HA under <strong>Developer Tools → Actions</strong>, searching for
-          <code>notify.</code> — use the part after the dot.
+          — Wharf relays each one to one or more Home Assistant <code>notify</code> services
+          ("devices" below), which is what's actually configured to reach a phone (typically a
+          mobile-app notify service HA sets up per device). Find a service name in HA under
+          <strong>Developer Tools → Actions</strong>, searching for <code>notify.</code> — use
+          the part after the dot. Add a row per phone/device Wharf should be able to reach, and
+          check <strong>Default</strong> for the one(s) that get a notification when a tool
+          doesn't say otherwise — each tool can also pick its own device(s) on its detail page,
+          and a single notify call can target a device directly.
         </p>
+        <table class="kv" id="notify-device-table">
+          <tr><th>Label</th><th>Notify service</th><th>Default</th><th></th></tr>
+        </table>
+        <div class="form-actions">
+          <button class="btn btn-ghost" type="button" id="notify-device-add" title="Add device">{{ icons.plus(14) }}<span class="label">Add device</span></button>
+        </div>
         <form id="notify-settings-form">
           <input type="text" name="ha_url" placeholder="http://homeassistant.local:8123" value="{{ settings.ha_url }}">
-          <input type="text" name="ha_notify_service" placeholder="mobile_app_max_iphone" value="{{ settings.ha_notify_service }}">
           <input type="password" name="ha_token" autocomplete="new-password"
                  placeholder="{{ 'long-lived access token — saved, leave blank to keep it' if settings.ha_token else 'long-lived access token' }}">
           {% if settings.ha_token %}
@@ -275,12 +281,13 @@ After making the changes, verify the server starts, binds 0.0.0.0 on $PORT, and 
         </form>
         {% if recent_notifications %}
         <table class="kv">
-          <tr><th>When</th><th>Tool</th><th>Message</th><th>Result</th></tr>
+          <tr><th>When</th><th>Tool</th><th>Message</th><th>Device(s)</th><th>Result</th></tr>
           {% for n in recent_notifications %}
           <tr>
             <td><code>{{ n.created_at | when }}</code></td>
             <td>{{ n.tool_id }}</td>
             <td>{% if n.title %}<strong>{{ n.title }}</strong> — {% endif %}{{ n.message }}</td>
+            <td>{{ n.devices | join(", ") }}</td>
             <td>{% if n.ok %}{{ icons.check(14) }}{% else %}{{ icons.x(14) }} {{ n.error }}{% endif %}</td>
           </tr>
           {% endfor %}
@@ -289,6 +296,8 @@ After making the changes, verify the server starts, binds 0.0.0.0 on $PORT, and 
         <p class="hint">No notifications sent yet.</p>
         {% endif %}
       </section>
+      <script id="notify-devices-data" type="application/json">{{ settings.ha_notify_devices | tojson }}</script>
+      <script id="notify-default-ids-data" type="application/json">{{ settings.ha_default_device_ids | tojson }}</script>
 
       <section class="panel">
         <div class="panel-head"><h2>macOS menubar app</h2></div>
@@ -525,13 +534,62 @@ if (authSignoutAllBtn) {
   });
 }
 
+// --- notification devices: an editable table backed by a small in-memory list ---
+let notifyDevices = JSON.parse(document.getElementById("notify-devices-data").textContent || "[]");
+const notifyDefaultIds = new Set(JSON.parse(document.getElementById("notify-default-ids-data").textContent || "[]"));
+let notifyDeviceSeq = 0;
+
+function renderNotifyDevices() {
+  const table = document.getElementById("notify-device-table");
+  table.querySelectorAll("tr[data-row]").forEach((r) => r.remove());
+  for (const device of notifyDevices) {
+    const row = document.createElement("tr");
+    row.dataset.row = device._key;
+    row.innerHTML = `
+      <td><input type="text" class="dev-label" placeholder="Max's iPhone" value="${device.label.replace(/"/g, "&quot;")}"></td>
+      <td><input type="text" class="dev-service" placeholder="mobile_app_max_iphone" value="${device.service.replace(/"/g, "&quot;")}"></td>
+      <td><input type="checkbox" class="dev-default" ${device._default ? "checked" : ""}></td>
+      <td><button type="button" class="btn btn-ghost dev-remove" title="Remove">${ICON_X}</button></td>`;
+    row.querySelector(".dev-label").addEventListener("input", (e) => { device.label = e.target.value; });
+    row.querySelector(".dev-service").addEventListener("input", (e) => { device.service = e.target.value; });
+    row.querySelector(".dev-default").addEventListener("change", (e) => { device._default = e.target.checked; });
+    row.querySelector(".dev-remove").addEventListener("click", () => {
+      notifyDevices = notifyDevices.filter((d) => d._key !== device._key);
+      renderNotifyDevices();
+    });
+    table.appendChild(row);
+  }
+}
+notifyDevices = notifyDevices.map((d) => ({ ...d, _key: `d${notifyDeviceSeq++}`, _default: notifyDefaultIds.has(d.id) }));
+renderNotifyDevices();
+
+document.getElementById("notify-device-add").addEventListener("click", () => {
+  notifyDevices.push({ id: `dev-${Date.now().toString(36)}`, label: "", service: "", _key: `d${notifyDeviceSeq++}`, _default: notifyDevices.length === 0 });
+  renderNotifyDevices();
+});
+
 const notifySettingsForm = document.getElementById("notify-settings-form");
 notifySettingsForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   const msg = document.getElementById("notify-settings-msg");
   msg.textContent = "Saving…";
+  const devices = notifyDevices
+    .filter((d) => d.label.trim() && d.service.trim())
+    .map((d) => ({ id: d.id, label: d.label.trim(), service: d.service.trim() }));
+  const defaultIds = notifyDevices.filter((d) => d._default).map((d) => d.id);
+  const fd = new FormData(notifySettingsForm);
   try {
-    const res = await fetch("/api/notifications/settings", { method: "POST", body: new FormData(notifySettingsForm) });
+    const res = await fetch("/api/notifications/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ha_url: fd.get("ha_url") || "",
+        ha_token: fd.get("ha_token") || "",
+        clear_token: fd.get("clear_token") === "true",
+        devices,
+        default_device_ids: defaultIds,
+      }),
+    });
     const d = await res.json();
     if (res.ok && d.ok) {
       setMsg(msg, ICON_CHECK, "Saved.");
@@ -565,12 +623,12 @@ notifyTestBtn.addEventListener("click", async () => {
   }
 });
 
-const menubarBtn = document.getElementById("menubar-launch");
-const menubarBtnHtml = menubarBtn.innerHTML;
-menubarBtn.addEventListener("click", async () => {
+const menubarPanelBtn = document.getElementById("menubar-launch");
+const menubarPanelBtnHtml = menubarPanelBtn.innerHTML;
+menubarPanelBtn.addEventListener("click", async () => {
   const msg = document.getElementById("menubar-msg");
-  menubarBtn.disabled = true;
-  menubarBtn.textContent = "Launching…";
+  menubarPanelBtn.disabled = true;
+  menubarPanelBtn.textContent = "Launching…";
   msg.textContent = "";
   try {
     const res = await fetch("/api/menubar/launch", { method: "POST" });
@@ -583,8 +641,8 @@ menubarBtn.addEventListener("click", async () => {
   } catch {
     setMsg(msg, ICON_X, "network error");
   } finally {
-    menubarBtn.disabled = false;
-    menubarBtn.innerHTML = menubarBtnHtml;
+    menubarPanelBtn.disabled = false;
+    menubarPanelBtn.innerHTML = menubarPanelBtnHtml;
   }
 });
 

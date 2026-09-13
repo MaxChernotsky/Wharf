@@ -137,6 +137,57 @@
   <pre id="log-view" data-tool="{{ tool.id }}"></pre>
 </section>
 
+<section class="panel" id="notify-panel">
+  <div class="panel-head"><h2>{{ icons.bell(16) }} Notifications</h2></div>
+  {% if notify_devices %}
+  <p class="hint">Which device(s) this tool's <code>/notify</code> calls go to by default
+     (a call can still name its own <code>device</code>/<code>devices</code>, which wins).
+     Leave none checked to use the default device(s) picked on
+     <a href="/settings#technical">Settings</a>.</p>
+  <div id="notify-device-list" style="display:flex; flex-wrap:wrap; gap:0.4rem 1.4rem; margin:0.6rem 0;">
+    {% set tool_notify_devices = tool.manifest.notify_devices if tool.manifest else [] %}
+    {% for d in notify_devices %}
+    <label><input type="checkbox" value="{{ d.id }}" {% if d.id in tool_notify_devices %}checked{% endif %}> {{ d.label }}</label>
+    {% endfor %}
+  </div>
+  <div class="form-actions">
+    <button class="btn btn-primary" type="button" id="notify-devices-save" title="Save">{{ icons.save(14) }}<span class="label">Save</span></button>
+    <span id="notify-devices-msg" class="hint"></span>
+  </div>
+  <template id="icon-x-notify-tpl">{{ icons.x(14) }}</template>
+  <template id="icon-check-notify-tpl">{{ icons.check(14) }}</template>
+  <script>
+  (function () {
+    const ICON_X = document.getElementById("icon-x-notify-tpl").innerHTML;
+    const ICON_CHECK = document.getElementById("icon-check-notify-tpl").innerHTML;
+    const btn = document.getElementById("notify-devices-save");
+    const msg = document.getElementById("notify-devices-msg");
+    const btnHtml = btn.innerHTML;
+    btn.addEventListener("click", async () => {
+      const devices = Array.from(document.querySelectorAll("#notify-device-list input:checked")).map((i) => i.value);
+      btn.disabled = true;
+      msg.textContent = "";
+      try {
+        const res = await fetch("/api/tools/{{ tool.id }}/notify-devices", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ devices }),
+        });
+        const d = await res.json();
+        if (res.ok && d.ok) { msg.innerHTML = ICON_CHECK; msg.append(" Saved"); }
+        else { msg.innerHTML = ICON_X; msg.append(" " + (d.detail || "couldn't save")); }
+      } catch { msg.innerHTML = ICON_X; msg.append(" network error"); }
+      btn.disabled = false;
+      btn.innerHTML = btnHtml;
+    });
+  })();
+  </script>
+  {% else %}
+  <p class="hint">No notification devices configured yet — add one on the
+     <a href="/settings#technical">Settings</a> page.</p>
+  {% endif %}
+</section>
+
 <details class="panel manifest-panel" {% if not tool.manifest %}open{% endif %}>
   <summary class="panel-head"><h2>{{ icons.settings(16) }} Settings</h2><span class="hint">tool.yml<span class="chevron">{{ icons.chevron_right(12) }}</span></span></summary>
   {% if manifest_form_error %}<div class="warn error-text">{{ icons.alert_triangle(14) }} {{ manifest_form_error }}</div>{% endif %}

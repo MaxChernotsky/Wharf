@@ -8,11 +8,12 @@ import os
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import Field
 from pydantic_settings import BaseSettings
 
 # fields the settings UI is allowed to persist over the environment defaults
 OVERRIDABLE_FIELDS = {
-    "tools_port_range", "ha_url", "ha_token", "ha_notify_service",
+    "tools_port_range", "ha_url", "ha_token", "ha_notify_devices", "ha_default_device_ids",
     "auth_password_hash", "auth_api_token",
 }
 
@@ -37,11 +38,17 @@ class Settings(BaseSettings):
     upload_max_files: int = 50_000
 
     # Home Assistant notify relay — tools report notifications to Wharf
-    # (POST /api/tools/<id>/notify) and Wharf forwards them to this HA
-    # notify service, which is what's actually wired up to reach a phone.
+    # (POST /api/tools/<id>/notify) and Wharf forwards them to one or more HA
+    # notify services (each one a "device" here), which is what's actually
+    # wired up to reach a phone.
     ha_url: str = ""              # e.g. http://homeassistant.local:8123
     ha_token: str = ""            # long-lived access token
-    ha_notify_service: str = ""   # the part after "notify." — e.g. mobile_app_max_iphone
+    ha_notify_devices: list[dict] = Field(default_factory=list)  # [{"id", "label",
+    # "service"}, ...] — "service" is the part after "notify." e.g. mobile_app_max_iphone
+    ha_default_device_ids: list[str] = Field(default_factory=list)  # device ids notified
+    # when a tool/request doesn't name one itself; empty = notify every configured device
+    ha_notify_service: str = ""   # bootstrap only: env var HA_NOTIFY_SERVICE from pre-multi
+                                   # -device installs, folded into ha_notify_devices below
 
     # Dashboard login — see app/auth.py. Empty hash = no login wall (default).
     auth_password: str = ""       # bootstrap only: env var AUTH_PASSWORD, hashed into
@@ -103,6 +110,18 @@ def get_settings() -> Settings:
     for field in OVERRIDABLE_FIELDS:
         if field in overrides:
             setattr(settings, field, overrides[field])
+    legacy_service = overrides.get("ha_notify_service") or settings.ha_notify_service
+    if legacy_service and not settings.ha_notify_devices:
+        # pre-multi-device installs stored a single `ha_notify_service` string (env var
+        # HA_NOTIFY_SERVICE or the old settings-page field) — turn it into a one-device
+        # list so upgrading doesn't lose the config
+        settings.ha_notify_devices = [{"id": "default", "label": "Default", "service": legacy_service}]
+        settings.ha_default_device_ids = ["default"]
+        save_overrides(
+            settings.state_dir,
+            ha_notify_devices=settings.ha_notify_devices,
+            ha_default_device_ids=settings.ha_default_device_ids,
+        )
     if settings.auth_password and not settings.auth_password_hash:
         from . import auth  # local import: auth.py has no reason to import config.py back
 

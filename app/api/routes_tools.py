@@ -36,6 +36,12 @@ class NotifyRequest(BaseModel):
     title: str | None = None
     priority: str | None = None
     data: dict | None = None
+    device: str | None = None          # target one device id, overriding tool/default config
+    devices: list[str] | None = None   # target several device ids (wins over `device`)
+
+
+class NotifyDevicesRequest(BaseModel):
+    devices: list[str] = []
 
 
 def _require_tool(mgr: ProcessManager, tool_id: str):
@@ -91,16 +97,38 @@ async def notify_tool(
     hub: NotificationHub = Depends(get_notifications),
 ):
     """A tool's way of telling Wharf it has something to say — Wharf relays
-    it to the Home Assistant notify service configured on the Settings page
-    (see app/notifications.py), which is what's actually wired up to reach a
-    phone. Wharf itself never talks to a phone directly."""
-    _require_tool(mgr, tool_id)
+    it to one or more Home Assistant notify-service "devices" configured on
+    the Settings page (see app/notifications.py), which is what's actually
+    wired up to reach a phone. Wharf itself never talks to a phone directly.
+    Which device(s) get it: the request's own `device`/`devices` field, else
+    the tool's `notify_devices` in tool.yml, else the Settings-page default."""
+    entry = _require_tool(mgr, tool_id)
+    requested = body.devices if body.devices else ([body.device] if body.device else None)
+    tool_devices = entry.manifest.notify_devices if entry.manifest else None
     record = await hub.notify(
         tool_id, body.message, title=body.title, priority=body.priority, data=body.data,
+        devices=requested, tool_devices=tool_devices,
     )
     if not record.ok:
         raise HTTPException(502, record.error or "notification failed")
     return {"ok": True, "id": record.id}
+
+
+@router.post("/tools/{tool_id}/notify-devices")
+def set_tool_notify_devices(
+    tool_id: str,
+    body: NotifyDevicesRequest,
+    mgr: ProcessManager = Depends(get_manager),
+):
+    """Which Settings-page notification device(s) this tool's own `/notify`
+    calls default to — persisted straight into the tool's tool.yml."""
+    entry = _require_tool(mgr, tool_id)
+    if entry.manifest is None:
+        raise HTTPException(409, "save the tool's manifest first")
+    manifest = entry.manifest.model_copy(update={"notify_devices": body.devices})
+    registry.save_manifest(entry.path, manifest)
+    mgr.rescan()
+    return {"ok": True}
 
 
 @router.post("/tools/{tool_id}/install")

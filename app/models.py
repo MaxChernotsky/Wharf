@@ -39,6 +39,9 @@ class Manifest(BaseModel):
     watch_ignore: list[str] = Field(default_factory=list)  # fnmatch patterns (relative to
     # the tool dir) excluded from the watch fingerprint — for a tool's own runtime output
     # (e.g. "data", "*.sqlite-*") that would otherwise trigger endless self-restarts
+    notify_devices: list[str] = Field(default_factory=list)  # device ids (Settings →
+    # Notifications) this tool's notify calls go to when a call doesn't name one itself;
+    # empty = use the default device(s) picked on the Settings page
 
     @field_validator("run")
     @classmethod
@@ -108,6 +111,7 @@ class NotificationRecord(BaseModel):
     title: str | None = None
     message: str
     priority: str | None = None
+    devices: list[str] = Field(default_factory=list)  # labels of the devices targeted
     ok: bool
     error: str | None = None
     created_at: float

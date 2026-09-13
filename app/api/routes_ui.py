@@ -188,6 +188,7 @@ def tool_detail(
     tool_id: str,
     sort: str = "name",
     mgr: ProcessManager = Depends(get_manager),
+    settings=Depends(get_config),
 ):
     mgr.rescan()
     entry = mgr.entry(tool_id)
@@ -214,6 +215,7 @@ def tool_detail(
             tools=_sorted_tools(mgr, sort),
             active=tool_id,
             sort=sort,
+            notify_devices=settings.ha_notify_devices,
         ),
     )
 
@@ -224,6 +226,7 @@ def save_manifest_form(
     tool_id: str,
     manifest_yaml: str = Form(...),
     mgr: ProcessManager = Depends(get_manager),
+    settings=Depends(get_config),
 ):
     mgr.rescan()
     entry = mgr.entry(tool_id)
@@ -247,6 +250,7 @@ def save_manifest_form(
                 tools=_sorted_tools(mgr, "name"),
                 active=tool_id,
                 sort="name",
+                notify_devices=settings.ha_notify_devices,
             ),
             status_code=422,
         )
