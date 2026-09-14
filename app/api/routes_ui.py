@@ -11,7 +11,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import ValidationError
 
-from .. import registry
+from .. import __version__, registry
 from ..manager import ProcessManager
 from ..models import Manifest, ToolStatus
 from ..notifications import NotificationHub
@@ -102,6 +102,7 @@ def _ctx(request: Request, mgr: ProcessManager, **extra):
         "request": request,
         "host": request.url.hostname or "localhost",
         "labels": STATUS_LABELS,
+        "wharf_version": __version__,
         **extra,
     }
 

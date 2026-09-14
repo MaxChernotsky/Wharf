@@ -1,6 +1,6 @@
 [project]
 name = "wharf"
-version = "0.1.0"
+version = "1.0.0"
 description = "Single-container dashboard that hosts and manages self-made AI tools on Unraid"
 requires-python = ">=3.12"
 dependencies = [
