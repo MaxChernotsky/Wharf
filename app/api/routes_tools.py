@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 import platform
 import re
-import uuid
 from pathlib import Path
 
 import asyncio
@@ -349,61 +348,6 @@ async def upload_tool(
         raise HTTPException(e.status_code, str(e))
     finally:
         tmp_zip.unlink(missing_ok=True)
-
-    mgr.rescan()
-    has_manifest = (dest / registry.MANIFEST_FILE).is_file()
-    return {"ok": True, "tool_id": tool_id, "has_manifest": has_manifest}
-
-
-@router.post("/tools/upload-folder")
-async def upload_folder(
-    files: list[UploadFile] = File(...),
-    name: str = Form(""),
-    replace: bool = Form(False),
-    mgr: ProcessManager = Depends(get_manager),
-    settings=Depends(get_config),
-):
-    """Reconstruct a dropped/chosen folder from its individual files (each
-    carrying its relative path as the multipart filename) and install it —
-    the drag-and-drop counterpart to the zip upload above."""
-    if not files:
-        raise HTTPException(400, "no files received")
-    if len(files) > settings.upload_max_files:
-        raise HTTPException(413, "folder contains too many files")
-
-    staging = settings.staging_dir / f"folder-{uuid.uuid4().hex}"
-    staging.mkdir(parents=True)
-    total = 0
-    try:
-        for f in files:
-            dest = uploads.safe_join(staging, f.filename or "")
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            with open(dest, "wb") as out:
-                while chunk := await f.read(1024 * 1024):
-                    total += len(chunk)
-                    if total > settings.upload_max_extracted_bytes:
-                        raise HTTPException(413, "folder expands beyond the allowed size")
-                    out.write(chunk)
-
-        # unwrap a single top-level folder, same convention as the zip upload
-        entries = [p for p in staging.iterdir() if p.name != "__MACOSX"]
-        src = entries[0] if len(entries) == 1 and entries[0].is_dir() else staging
-
-        if name:
-            candidate = name
-        elif src != staging:
-            candidate = src.name
-        else:
-            candidate = "tool"
-        tool_id = uploads.sanitize_tool_id(candidate)
-        dest = uploads.install_tool_dir(src, tool_id, settings, replace=replace)
-        uploads.cleanup_staging(src, settings)
-    except uploads.UploadError as e:
-        _shutil.rmtree(staging, ignore_errors=True)
-        raise HTTPException(e.status_code, str(e))
-    except HTTPException:
-        _shutil.rmtree(staging, ignore_errors=True)
-        raise
 
     mgr.rescan()
     has_manifest = (dest / registry.MANIFEST_FILE).is_file()

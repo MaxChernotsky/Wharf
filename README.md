@@ -27,10 +27,8 @@ listening on each.
 `tools/` inside the appdata share, click **Rescan** in the dashboard, then
 **Configure** — a suggested `tool.yml` is prefilled for you to review.
 
-**Option B — upload a zip, or drag-and-drop a folder** from the **Add tool**
-page. Dropping a folder sends its files individually (each carrying its
-relative path) and Wharf reconstructs it server-side — useful when you don't
-want to zip something up first.
+**Option B — upload a zip** from the **Add tool** page — drag one onto the
+dropzone, or pick a file, then click **Upload**.
 
 **Option C — link a local folder, for active development.** From the
 **Settings** page (or `POST /api/tools/link` with `path`/`name` form fields),

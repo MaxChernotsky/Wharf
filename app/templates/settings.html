@@ -5,6 +5,8 @@
 <h1>Settings</h1>
 <template id="icon-x-tpl">{{ icons.x(14) }}</template>
 <template id="icon-check-tpl">{{ icons.check(14) }}</template>
+<template id="icon-eye-tpl">{{ icons.eye(14) }}</template>
+<template id="icon-eye-off-tpl">{{ icons.eye_off(14) }}</template>
 
 <div class="layout">
   <aside class="sidebar settings-nav">
@@ -12,7 +14,7 @@
     <a href="#add" class="trow settings-nav-link current" data-category="add">
       <span class="trow-main">
         <span class="trow-name">Add a tool</span>
-        <span class="hint">Upload, clone, link, or drop one in</span>
+        <span class="hint">Upload, clone, or link one in</span>
       </span>
     </a>
     <a href="#appearance" class="trow settings-nav-link" data-category="appearance">
@@ -35,7 +37,10 @@
       <section class="panel" id="add-tool">
         <div class="panel-head"><h2>Add a tool — upload a zip</h2></div>
         <form id="upload-form">
-          <input type="file" name="file" accept=".zip" required>
+          <div id="zip-drop" class="dropzone">
+            <p>Drag a .zip file here, or choose one below</p>
+            <input type="file" name="file" id="zip-file-input" accept=".zip" required>
+          </div>
           <input type="text" name="name" placeholder="Tool name (optional — defaults to folder/zip name)">
           <label><input type="checkbox" name="replace" value="true"> Replace if a tool with this name exists</label>
           <div class="form-actions">
@@ -79,32 +84,6 @@
             <span id="link-msg" class="hint"></span>
           </div>
         </form>
-      </section>
-
-      <section class="panel">
-        <div class="panel-head"><h2>Add a tool — drop a folder</h2></div>
-        <div id="folder-drop" class="dropzone">
-          <p>Drag a tool's folder here<br><span class="hint">or</span></p>
-          <button type="button" class="btn" id="folder-pick" title="Choose a folder…">{{ icons.folder(14) }}<span class="label">Choose a folder…</span></button>
-          <input type="file" id="folder-input" webkitdirectory multiple hidden>
-        </div>
-        <div class="form-actions">
-          <progress id="folder-progress" max="100" value="0" hidden></progress>
-          <span id="folder-msg" class="hint"></span>
-        </div>
-        <p class="hint">
-          Prefer the filesystem? The tools directory lives at
-          <code id="tools-dir-path">{{ settings.tools_dir }}</code>
-          <button type="button" class="btn btn-ghost" id="copy-tools-dir" title="Copy path">{{ icons.copy(14) }}<span class="label">Copy path</span></button>
-          — copy a folder in there directly (handy over SMB/a mounted volume), then:
-        </p>
-        <ol>
-          <li>Click <strong>Rescan</strong> — the folder appears as an unconfigured card.</li>
-          <li>Click <strong>Configure</strong> — a suggested <code>tool.yml</code> is prefilled for you to review and save.</li>
-        </ol>
-        <div class="form-actions">
-          <button class="btn" hx-post="/api/rescan" hx-swap="none" onclick="setTimeout(()=>location.href='/', 400)" title="Rescan now">{{ icons.rotate_cw(14) }}<span class="label">Rescan now</span></button>
-        </div>
       </section>
 
       <section class="panel">
@@ -171,11 +150,30 @@ After making the changes, verify the server starts, binds 0.0.0.0 on $PORT, and 
       <section class="panel">
         <div class="panel-head"><h2>Wharf configuration</h2></div>
         <table class="kv">
-          <tr><td>Tools directory</td><td><code>{{ settings.tools_dir }}</code></td></tr>
+          <tr>
+            <td>Tools directory</td>
+            <td>
+              <code id="tools-dir-path">{{ settings.tools_dir }}</code>
+              <button type="button" class="btn btn-ghost" id="copy-tools-dir" title="Copy path">{{ icons.copy(14) }}<span class="label">Copy path</span></button>
+            </td>
+          </tr>
           <tr><td>Dashboard port</td><td><code>{{ settings.dashboard_port }}</code></td></tr>
           <tr><td>Stop grace period</td><td><code>{{ settings.stop_grace_seconds }}s</code></td></tr>
         </table>
-        <p class="hint">Configured via container environment variables.</p>
+        <p class="hint">
+          Configured via container environment variables. In Docker/Unraid this path lives
+          inside the container's mapped <code>/data</code> volume, so it stays valid (and
+          survives restarts/updates) as long as that volume mapping is in place — copy a
+          tool's folder into <code>tools/</code> there directly (handy over SMB/a mounted
+          share), then:
+        </p>
+        <ol>
+          <li>Click <strong>Rescan</strong> — the folder appears as an unconfigured card.</li>
+          <li>Click <strong>Configure</strong> — a suggested <code>tool.yml</code> is prefilled for you to review and save.</li>
+        </ol>
+        <div class="form-actions">
+          <button class="btn" hx-post="/api/rescan" hx-swap="none" onclick="setTimeout(()=>location.href='/', 400)" title="Rescan now">{{ icons.rotate_cw(14) }}<span class="label">Rescan now</span></button>
+        </div>
       </section>
 
       <section class="panel">
@@ -199,7 +197,7 @@ After making the changes, verify the server starts, binds 0.0.0.0 on $PORT, and 
         <p class="hint">
           This only changes what Wharf assigns <em>inside</em> the container. For tools to
           stay reachable from outside, the range must still be mapped 1:1 in your
-          Docker/Unraid port mapping (e.g. <code>-p 8100-8199:8100-8199</code>) — update that
+          Docker/Unraid port mapping (e.g. <code>-p {{ settings.tools_port_range }}:{{ settings.tools_port_range }}</code>) — update that
           separately if you widen or move the range.
         </p>
       </section>
@@ -280,7 +278,10 @@ After making the changes, verify the server starts, binds 0.0.0.0 on $PORT, and 
           </div>
         </form>
         {% if recent_notifications %}
-        <table class="kv">
+        <div class="form-actions">
+          <button class="btn btn-ghost" type="button" id="notify-history-toggle" data-count="{{ recent_notifications | length }}" title="Show notification history">{{ icons.eye(14) }}<span class="label">Show history ({{ recent_notifications | length }})</span></button>
+        </div>
+        <table class="kv" id="notify-history-table" hidden>
           <tr><th>When</th><th>Tool</th><th>Message</th><th>Device(s)</th><th>Result</th></tr>
           {% for n in recent_notifications %}
           <tr>
@@ -334,6 +335,8 @@ After making the changes, verify the server starts, binds 0.0.0.0 on $PORT, and 
 <script>
 const ICON_X = document.getElementById("icon-x-tpl").innerHTML;
 const ICON_CHECK = document.getElementById("icon-check-tpl").innerHTML;
+const ICON_EYE = document.getElementById("icon-eye-tpl").innerHTML;
+const ICON_EYE_OFF = document.getElementById("icon-eye-off-tpl").innerHTML;
 function setMsg(el, icon, text) { el.innerHTML = icon; el.append(" " + text); }
 
 // --- settings category nav ---
@@ -600,6 +603,19 @@ notifySettingsForm.addEventListener("submit", async (e) => {
   } catch { setMsg(msg, ICON_X, "network error"); }
 });
 
+const notifyHistoryToggle = document.getElementById("notify-history-toggle");
+if (notifyHistoryToggle) {
+  const notifyHistoryTable = document.getElementById("notify-history-table");
+  const count = notifyHistoryToggle.dataset.count;
+  notifyHistoryToggle.addEventListener("click", () => {
+    notifyHistoryTable.hidden = !notifyHistoryTable.hidden;
+    const isHidden = notifyHistoryTable.hidden;
+    notifyHistoryToggle.title = isHidden ? "Show notification history" : "Hide notification history";
+    notifyHistoryToggle.innerHTML = (isHidden ? ICON_EYE : ICON_EYE_OFF) +
+      `<span class="label">${isHidden ? `Show history (${count})` : "Hide history"}</span>`;
+  });
+}
+
 const notifyTestBtn = document.getElementById("notify-test-btn");
 const notifyTestBtnHtml = notifyTestBtn.innerHTML;
 notifyTestBtn.addEventListener("click", async () => {
@@ -690,89 +706,22 @@ copyPathBtn.addEventListener("click", async () => {
   setTimeout(() => (copyPathBtn.innerHTML = copyPathBtnHtml), 1500);
 });
 
-// --- drop-a-folder: drag-and-drop (webkitGetAsEntry) + a "choose a folder" fallback ---
-const dropzone = document.getElementById("folder-drop");
-const folderInput = document.getElementById("folder-input");
-const folderProgress = document.getElementById("folder-progress");
-const folderMsg = document.getElementById("folder-msg");
-
-document.getElementById("folder-pick").addEventListener("click", () => folderInput.click());
-folderInput.addEventListener("change", () => {
-  const collected = Array.from(folderInput.files).map(f => ({ file: f, path: f.webkitRelativePath || f.name }));
-  folderInput.value = "";
-  if (collected.length) uploadFolder(collected);
-});
+// --- zip upload: drag-and-drop a .zip onto the dropzone, in addition to the file picker ---
+const zipDrop = document.getElementById("zip-drop");
+const zipFileInput = document.getElementById("zip-file-input");
 
 ["dragenter", "dragover"].forEach(evt =>
-  dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.add("dragover"); })
+  zipDrop.addEventListener(evt, (e) => { e.preventDefault(); zipDrop.classList.add("dragover"); })
 );
 ["dragleave", "drop"].forEach(evt =>
-  dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.remove("dragover"); })
+  zipDrop.addEventListener(evt, (e) => { e.preventDefault(); zipDrop.classList.remove("dragover"); })
 );
-
-function readAllEntries(reader) {
-  return new Promise((resolve, reject) => {
-    let all = [];
-    (function next() {
-      reader.readEntries((batch) => {
-        if (!batch.length) { resolve(all); return; }
-        all = all.concat(batch);
-        next();
-      }, reject);
-    })();
-  });
-}
-
-async function walkEntry(entry, base, out) {
-  if (entry.isFile) {
-    const file = await new Promise((res, rej) => entry.file(res, rej));
-    out.push({ file, path: base + entry.name });
-  } else if (entry.isDirectory) {
-    const entries = await readAllEntries(entry.createReader());
-    for (const child of entries) await walkEntry(child, base + entry.name + "/", out);
-  }
-}
-
-dropzone.addEventListener("drop", async (e) => {
-  const items = e.dataTransfer && e.dataTransfer.items;
-  if (!items || !items.length) return;
-  const roots = Array.from(items)
-    .map(it => it.webkitGetAsEntry && it.webkitGetAsEntry())
-    .filter(Boolean);
-  if (!roots.length) {
-    setMsg(folderMsg, ICON_X, "your browser doesn't support folder drag-and-drop — use \"Choose a folder\" instead.");
-    return;
-  }
-  const collected = [];
-  await Promise.all(roots.map(entry => walkEntry(entry, "", collected)));
-  if (collected.length) uploadFolder(collected);
-  else setMsg(folderMsg, ICON_X, "that folder looks empty.");
+zipDrop.addEventListener("drop", (e) => {
+  const files = e.dataTransfer && e.dataTransfer.files;
+  if (!files || !files.length) return;
+  const dt = new DataTransfer();
+  dt.items.add(files[0]);
+  zipFileInput.files = dt.files;
 });
-
-function uploadFolder(collected) {
-  const fd = new FormData();
-  for (const { file, path } of collected) fd.append("files", file, path);
-  const xhr = new XMLHttpRequest();
-  folderProgress.hidden = false;
-  folderProgress.value = 0;
-  folderMsg.textContent = `Uploading ${collected.length} file(s)…`;
-  xhr.upload.addEventListener("progress", (ev) => {
-    if (ev.lengthComputable) folderProgress.value = (ev.loaded / ev.total) * 100;
-  });
-  xhr.addEventListener("load", () => {
-    folderProgress.hidden = true;
-    try {
-      const res = JSON.parse(xhr.responseText);
-      if (xhr.status < 300 && res.ok) {
-        window.location.href = res.has_manifest ? "/" : `/tools/${res.tool_id}`;
-      } else {
-        setMsg(folderMsg, ICON_X, res.detail || "upload failed");
-      }
-    } catch { setMsg(folderMsg, ICON_X, "upload failed (" + xhr.status + ")"); }
-  });
-  xhr.addEventListener("error", () => { folderProgress.hidden = true; setMsg(folderMsg, ICON_X, "network error"); });
-  xhr.open("POST", "/api/tools/upload-folder");
-  xhr.send(fd);
-}
 </script>
 {% endblock %}
