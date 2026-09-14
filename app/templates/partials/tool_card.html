@@ -55,7 +55,6 @@
         <a class="btn btn-primary" href="http://{{ host }}:{{ tool.port }}" target="_blank" rel="noopener" title="Open"><span class="label">Open</span>{{ icons.external_link(14) }}</a>
         <button type="button" class="btn" title="Open in a panel on this page" data-frame-url="http://{{ host }}:{{ tool.port }}" data-frame-title="{{ tool.display_name }}">{{ icons.panel(14) }}<span class="label">Open here</span></button>
         <button class="btn" hx-post="/partials/tools/{{ tool.id }}/stop" hx-target="#tool-{{ tool.id }}" hx-swap="outerHTML" title="Stop">{{ icons.stop(14) }}<span class="label">Stop</span></button>
-        <button class="btn" hx-post="/partials/tools/{{ tool.id }}/restart" hx-target="#tool-{{ tool.id }}" hx-swap="outerHTML" title="Restart">{{ icons.rotate_cw(14) }}<span class="label">Restart</span></button>
       {% elif tool.status.value in ("starting", "stopping", "installing") %}
         <span class="spinner"></span>
       {% elif tool.status.value == "not_installed" %}
@@ -65,7 +64,6 @@
         <button type="button" class="btn" title="Open in a panel on this page" data-frame-url="/launch/{{ tool.id }}" data-frame-title="{{ tool.display_name }}">{{ icons.panel(14) }}<span class="label">Open here</span></button>
         <button class="btn" hx-post="/partials/tools/{{ tool.id }}/start" hx-target="#tool-{{ tool.id }}" hx-swap="outerHTML" title="Start">{{ icons.play(14) }}<span class="label">Start</span></button>
       {% endif %}
-      <a class="btn btn-ghost" href="/tools/{{ tool.id }}" title="Logs">{{ icons.terminal(14) }}<span class="label">Logs</span></a>
     {% endif %}
     {% if tool.port %}<span class="port">:{{ tool.port }}</span>{% endif %}
   </div>
