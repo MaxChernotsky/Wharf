@@ -7,6 +7,7 @@
   const sourceSel = document.getElementById("log-source");
   const autoscroll = document.getElementById("log-autoscroll");
   const clearBtn = document.getElementById("log-clear");
+  const downloadBtn = document.getElementById("log-download");
   const searchBox = document.getElementById("log-search");
   const tsToggle = document.getElementById("log-timestamps");
   const MAX_LINES = 5000;
@@ -76,10 +77,17 @@
     if (!autoscroll || autoscroll.checked) view.scrollTop = view.scrollHeight;
   }
 
+  function updateDownloadLink(source) {
+    if (!downloadBtn) return;
+    downloadBtn.href = `/api/logs/${toolId}/download?source=${source}`;
+    downloadBtn.download = `${toolId}-${source}.log`;
+  }
+
   function connect() {
     if (es) es.close();
     view.textContent = "";
     const source = sourceSel ? sourceSel.value : "run";
+    updateDownloadLink(source);
     es = new EventSource(`/api/logs/${toolId}/stream?source=${source}`);
     // the server replays the ring buffer on every (re)connect — start clean
     es.onopen = () => (view.textContent = "");

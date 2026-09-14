@@ -208,6 +208,32 @@ h2 { font-size: 1.05rem; margin: 0; }
 :root[data-icon-mode="icon"] .btn { padding-inline: 0.5rem; }
 :root[data-icon-mode="text"] .btn .i { display: none; }
 
+/* "..." dropdown menu (see static/menu.js) */
+.menu { position: relative; display: inline-flex; }
+.menu-panel {
+  position: absolute; top: calc(100% + 0.3rem); left: 0; z-index: 20;
+  min-width: 11rem;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+  padding: 0.3rem;
+  display: flex; flex-direction: column; gap: 0.1rem;
+}
+.menu-panel[hidden] { display: none; }
+.menu-item {
+  display: flex; align-items: center; gap: 0.5rem;
+  width: 100%;
+  background: none; border: none; border-radius: 6px;
+  color: var(--text); text-decoration: none;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.86rem; font-weight: 500; text-align: left;
+  cursor: pointer;
+}
+.menu-item:hover { background: var(--panel-2); }
+.menu-item-danger { color: var(--red); }
+.menu-sep { height: 1px; background: var(--border); margin: 0.3rem 0.2rem; }
+
 .segmented {
   display: inline-flex; gap: 0.2rem;
   background: var(--panel-2);

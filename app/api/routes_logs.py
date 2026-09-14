@@ -7,7 +7,7 @@ import json
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 
 from ..logbuf import LogHub, strip_ansi
 from .deps import get_loghub, get_manager
@@ -23,6 +23,25 @@ def tail(tool_id: str, lines: int = 500, source: str = "run", hub: LogHub = Depe
     if source not in VALID_SOURCES:
         raise HTTPException(400, "source must be 'run' or 'install'")
     return {"lines": [strip_ansi(s) for _, s in hub.channel(tool_id, source).tail(lines)]}
+
+
+@router.get("/{tool_id}/download")
+def download(
+    tool_id: str,
+    source: str = "run",
+    hub: LogHub = Depends(get_loghub),
+    mgr=Depends(get_manager),
+):
+    if source not in VALID_SOURCES:
+        raise HTTPException(400, "source must be 'run' or 'install'")
+    if not mgr.entry(tool_id):
+        mgr.rescan()
+        if not mgr.entry(tool_id):
+            raise HTTPException(404, f"no tool named {tool_id!r}")
+    path = hub.logs_dir / tool_id / f"{source}.log"
+    if not path.exists():
+        raise HTTPException(404, "no log file yet")
+    return FileResponse(path, media_type="text/plain", filename=f"{tool_id}-{source}.log")
 
 
 @router.get("/{tool_id}/stream")

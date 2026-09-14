@@ -21,18 +21,26 @@
   <button class="btn" hx-post="/api/tools/{{ tool.id }}/start" hx-swap="none" title="Start">{{ icons.play(14) }}<span class="label">Start</span></button>
   <button class="btn" hx-post="/api/tools/{{ tool.id }}/stop" hx-swap="none" title="Stop">{{ icons.stop(14) }}<span class="label">Stop</span></button>
   <button class="btn" hx-post="/api/tools/{{ tool.id }}/restart" hx-swap="none" title="Restart">{{ icons.rotate_cw(14) }}<span class="label">Restart</span></button>
-  <button class="btn" hx-post="/api/tools/{{ tool.id }}/install" hx-swap="none" title="Install">{{ icons.download(14) }}<span class="label">Install</span></button>
-  <button class="btn" hx-post="/api/tools/{{ tool.id }}/install?rebuild=true" hx-confirm="Wipe .venv / node_modules and reinstall?" hx-swap="none" title="Rebuild">{{ icons.package(14) }}<span class="label">Rebuild</span></button>
-  {% if tool.manifest %}
-    {% if tool.manifest.watch %}
-      <button class="btn" title="Auto-restarts on file changes — stop watching" hx-post="/api/tools/{{ tool.id }}/watch?enabled=false" hx-swap="none">{{ icons.eye_off(14) }}<span class="label">Stop watching</span></button>
-    {% else %}
-      <button class="btn" title="Auto-restart this tool when its files change" hx-post="/api/tools/{{ tool.id }}/watch?enabled=true" hx-swap="none">{{ icons.eye(14) }}<span class="label">Watch for changes</span></button>
-    {% endif %}
-  {% endif %}
-  <a class="btn" href="/api/tools/{{ tool.id }}/export" download title="Export zip">{{ icons.archive(14) }}<span class="label">Export zip</span></a>
-  <button class="btn btn-danger" hx-delete="/api/tools/{{ tool.id }}?delete_files=true"
-          hx-confirm="Delete this tool AND its files from disk? This cannot be undone."
-          hx-swap="none" onclick="setTimeout(()=>location.href='/', 600)" title="Delete">{{ icons.trash(14) }}<span class="label">Delete</span></button>
+
+  <div class="menu">
+    <button type="button" class="btn menu-trigger" aria-haspopup="true" aria-expanded="false" title="More actions">{{ icons.more_horizontal(14) }}<span class="label">More</span></button>
+    <div class="menu-panel" role="menu" hidden>
+      <button class="menu-item" role="menuitem" hx-post="/api/tools/{{ tool.id }}/install" hx-swap="none">{{ icons.download(14) }}<span class="label">Install</span></button>
+      <button class="menu-item" role="menuitem" hx-post="/api/tools/{{ tool.id }}/install?rebuild=true" hx-confirm="Wipe .venv / node_modules and reinstall?" hx-swap="none">{{ icons.package(14) }}<span class="label">Rebuild</span></button>
+      {% if tool.manifest %}
+        {% if tool.manifest.watch %}
+          <button class="menu-item" role="menuitem" title="Auto-restarts on file changes — stop watching" hx-post="/api/tools/{{ tool.id }}/watch?enabled=false" hx-swap="none">{{ icons.eye_off(14) }}<span class="label">Stop watching</span></button>
+        {% else %}
+          <button class="menu-item" role="menuitem" title="Auto-restart this tool when its files change" hx-post="/api/tools/{{ tool.id }}/watch?enabled=true" hx-swap="none">{{ icons.eye(14) }}<span class="label">Watch for changes</span></button>
+        {% endif %}
+      {% endif %}
+      <a class="menu-item" role="menuitem" href="/api/tools/{{ tool.id }}/export" download>{{ icons.archive(14) }}<span class="label">Export zip</span></a>
+      <div class="menu-sep"></div>
+      <button class="menu-item menu-item-danger" role="menuitem" hx-delete="/api/tools/{{ tool.id }}?delete_files=true"
+              hx-confirm="Delete this tool AND its files from disk? This cannot be undone."
+              hx-swap="none" onclick="setTimeout(()=>location.href='/', 600)">{{ icons.trash(14) }}<span class="label">Delete</span></button>
+    </div>
+  </div>
+
   <span hx-get="/partials/tools/{{ tool.id }}/install-status" hx-trigger="load, every 2s" hx-swap="innerHTML"></span>
 </div>
