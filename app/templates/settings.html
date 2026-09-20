@@ -340,6 +340,26 @@ const ICON_EYE = document.getElementById("icon-eye-tpl").innerHTML;
 const ICON_EYE_OFF = document.getElementById("icon-eye-off-tpl").innerHTML;
 function setMsg(el, icon, text) { el.innerHTML = icon; el.append(" " + text); }
 
+// navigator.clipboard is only available in secure contexts (https or localhost);
+// fall back to a hidden textarea + execCommand when accessed over plain http on a LAN IP.
+async function copyText(text) {
+  if (navigator.clipboard && window.isSecureContext) {
+    try { await navigator.clipboard.writeText(text); return true; } catch {}
+  }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  } catch { return false; }
+}
+
 // --- settings category nav ---
 const CATEGORIES = ["add", "appearance", "technical"];
 const navLinks = document.querySelectorAll(".settings-nav-link");
@@ -504,8 +524,8 @@ if (authTokenBtn) {
       const res = await fetch("/api/auth/token/regenerate", { method: "POST" });
       const d = await res.json();
       if (res.ok && d.ok) {
-        try { await navigator.clipboard.writeText(d.token); } catch {}
-        setMsg(msg, ICON_CHECK, "Copied to clipboard — shown only this once: " + d.token);
+        const copied = await copyText(d.token);
+        setMsg(msg, ICON_CHECK, (copied ? "Copied to clipboard — " : "") + "shown only this once: " + d.token);
       } else {
         setMsg(msg, ICON_X, d.detail || "couldn't generate token");
       }
@@ -666,8 +686,8 @@ menubarPanelBtn.addEventListener("click", async () => {
 const copyBtn = document.getElementById("copy-prompt");
 const copyBtnHtml = copyBtn.innerHTML;
 copyBtn.addEventListener("click", async () => {
-  await navigator.clipboard.writeText(document.getElementById("ai-prompt").textContent);
-  setMsg(copyBtn, ICON_CHECK, "Copied");
+  const ok = await copyText(document.getElementById("ai-prompt").textContent);
+  setMsg(copyBtn, ok ? ICON_CHECK : ICON_X, ok ? "Copied" : "Copy failed");
   setTimeout(() => (copyBtn.innerHTML = copyBtnHtml), 1500);
 });
 
@@ -702,8 +722,8 @@ form.addEventListener("submit", (e) => {
 const copyPathBtn = document.getElementById("copy-tools-dir");
 const copyPathBtnHtml = copyPathBtn.innerHTML;
 copyPathBtn.addEventListener("click", async () => {
-  await navigator.clipboard.writeText(document.getElementById("tools-dir-path").textContent);
-  setMsg(copyPathBtn, ICON_CHECK, "Copied");
+  const ok = await copyText(document.getElementById("tools-dir-path").textContent);
+  setMsg(copyPathBtn, ok ? ICON_CHECK : ICON_X, ok ? "Copied" : "Copy failed");
   setTimeout(() => (copyPathBtn.innerHTML = copyPathBtnHtml), 1500);
 });
 
