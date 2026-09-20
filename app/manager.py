@@ -45,12 +45,12 @@ class ToolSupervisor:
         self.history: collections.deque[tuple[float, float, float]] = collections.deque(maxlen=720)
         # (epoch, kind, detail) — kind: started|stopped|crashed|gave-up|mem-cap|idle-stop
         self.events: collections.deque[tuple[float, str, str]] = collections.deque(maxlen=50)
-
-    def add_event(self, kind: str, detail: str = "") -> None:
-        self.events.append((time.time(), kind, detail))
         self._wait_task: asyncio.Task | None = None
         self._health_task: asyncio.Task | None = None
         self._stopping = False  # user-requested stop in progress
+
+    def add_event(self, kind: str, detail: str = "") -> None:
+        self.events.append((time.time(), kind, detail))
 
     @property
     def restart_count(self) -> int:
