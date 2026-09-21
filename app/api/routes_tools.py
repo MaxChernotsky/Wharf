@@ -354,6 +354,92 @@ async def upload_tool(
     return {"ok": True, "tool_id": tool_id, "has_manifest": has_manifest}
 
 
+@router.post("/tools/{tool_id}/update")
+async def stage_tool_update(
+    tool_id: str,
+    file: UploadFile = File(...),
+    mgr: ProcessManager = Depends(get_manager),
+    settings=Depends(get_config),
+):
+    """Stage a new zip as a pending update for an already-installed tool.
+    Doesn't touch the live tool dir — see POST .../update/apply for that."""
+    entry = _require_tool(mgr, tool_id)
+    if entry.path.is_symlink():
+        raise HTTPException(400, "tool is dev-linked — edit its source directory directly instead")
+    if not (file.filename or "").lower().endswith(".zip"):
+        raise HTTPException(400, "only .zip uploads are supported")
+
+    tmp_zip = settings.staging_dir / f"update-{tool_id}-{file.filename}"
+    size = 0
+    with open(tmp_zip, "wb") as out:
+        while chunk := await file.read(1024 * 1024):
+            size += len(chunk)
+            if size > settings.upload_max_zip_bytes:
+                out.close()
+                tmp_zip.unlink(missing_ok=True)
+                raise HTTPException(413, "zip file too large")
+            out.write(chunk)
+
+    try:
+        uploads.stage_update(tmp_zip, tool_id, settings)
+    except uploads.UploadError as e:
+        raise HTTPException(e.status_code, str(e))
+    finally:
+        tmp_zip.unlink(missing_ok=True)
+
+    return {"ok": True, "staged": True}
+
+
+@router.post("/tools/{tool_id}/update/apply")
+async def apply_tool_update(
+    tool_id: str,
+    mgr: ProcessManager = Depends(get_manager),
+    inst: Installer = Depends(get_installer),
+    settings=Depends(get_config),
+):
+    """Swap a staged update into place (data/ preserved), reinstall, and
+    restart the tool if it was running — same shape as git/pull."""
+    _require_tool(mgr, tool_id)
+    info = mgr.tool_info(tool_id)
+    was_running = bool(info and info.status in (ToolStatus.RUNNING, ToolStatus.UNHEALTHY, ToolStatus.STARTING))
+    if was_running:
+        await mgr.stop_tool(tool_id)  # a live process holding the tool dir is trouble mid-swap
+
+    chan = mgr.logs.channel(tool_id, "install")
+    chan.append("--- applying staged zip update")
+    try:
+        uploads.apply_pending_update(tool_id, settings)
+    except uploads.UploadError as e:
+        chan.append(f"--- update FAILED: {e}")
+        raise HTTPException(e.status_code, str(e))
+
+    mgr.rescan()
+    await inst.install(tool_id)  # background; new source often means new deps
+
+    async def restart_when_installed():
+        for _ in range(600):
+            job = inst.job(tool_id)
+            if job and not job.active:
+                if job.ok:
+                    await mgr.start_tool(tool_id)
+                return
+            await asyncio.sleep(1)
+    if was_running:
+        asyncio.create_task(restart_when_installed())
+    return {"ok": True, "reinstalling": True}
+
+
+@router.delete("/tools/{tool_id}/update")
+def discard_tool_update(
+    tool_id: str,
+    mgr: ProcessManager = Depends(get_manager),
+    settings=Depends(get_config),
+):
+    _require_tool(mgr, tool_id)
+    uploads.discard_pending_update(tool_id, settings)
+    return {"ok": True}
+
+
 @router.get("/tools/{tool_id}/stats")
 def tool_stats(tool_id: str, mgr: ProcessManager = Depends(get_manager)):
     """History + event log for the detail-page charts."""

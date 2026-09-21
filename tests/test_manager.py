@@ -146,3 +146,23 @@ async def test_process_group_kill_reaps_children(settings):
     import os
     with pytest.raises(ProcessLookupError):
         os.killpg(pgid, 0)
+
+
+def test_tool_info_reports_pending_update(settings):
+    make_tool(settings, "srv", "run: echo hi\n")
+    mgr = make_manager(settings)
+    mgr.rescan()
+    assert mgr.tool_info("srv").has_pending_update is False
+
+    (settings.pending_updates_dir / "srv").mkdir(parents=True)
+    assert mgr.tool_info("srv").has_pending_update is True
+
+
+def test_tool_info_reports_linked(settings, tmp_path):
+    dev_dir = tmp_path / "dev-checkout"
+    dev_dir.mkdir()
+    (dev_dir / "tool.yml").write_text("run: echo hi\n")
+    (settings.tools_dir / "linked").symlink_to(dev_dir, target_is_directory=True)
+    mgr = make_manager(settings)
+    mgr.rescan()
+    assert mgr.tool_info("linked").is_linked is True

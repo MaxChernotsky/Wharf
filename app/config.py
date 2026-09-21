@@ -69,12 +69,18 @@ class Settings(BaseSettings):
         return self.data_dir / ".staging"
 
     @property
+    def pending_updates_dir(self) -> Path:
+        """Zip updates staged for an existing tool but not yet applied —
+        one subfolder per tool_id, named after it. See app/uploads.py."""
+        return self.data_dir / "pending-updates"
+
+    @property
     def port_range(self) -> tuple[int, int]:
         lo, _, hi = self.tools_port_range.partition("-")
         return int(lo), int(hi or lo)
 
     def ensure_dirs(self) -> None:
-        for d in (self.tools_dir, self.logs_dir, self.state_dir, self.staging_dir):
+        for d in (self.tools_dir, self.logs_dir, self.state_dir, self.staging_dir, self.pending_updates_dir):
             d.mkdir(parents=True, exist_ok=True)
 
 

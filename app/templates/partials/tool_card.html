@@ -19,6 +19,12 @@
     </div>
   {% endif %}
 
+  {% if tool.has_pending_update %}
+    <div class="warn">
+      {{ icons.arrow_down(14) }} Update staged — <a href="/tools/{{ tool.id }}">apply it</a> when ready
+    </div>
+  {% endif %}
+
   {% if tool.status.value in ("running", "unhealthy") %}
     <div class="stats">
       <span class="stat">CPU {{ "%.0f"|format(tool.cpu_pct or 0) }}%

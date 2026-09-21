@@ -84,6 +84,100 @@ def test_install_replace(settings):
     assert not (dest / "old.txt").exists()
 
 
+def test_install_replace_preserves_data_dir(settings):
+    (settings.tools_dir / "taken").mkdir()
+    (settings.tools_dir / "taken" / "old.txt").write_text("old")
+    data_dir = settings.tools_dir / "taken" / "data"
+    data_dir.mkdir()
+    (data_dir / "state.db").write_text("precious")
+
+    src = settings.staging_dir / "newtool"
+    src.mkdir()
+    (src / "new.txt").write_text("new")
+
+    dest = uploads.install_tool_dir(src, "taken", settings, replace=True)
+    assert (dest / "new.txt").is_file()
+    assert not (dest / "old.txt").exists()
+    assert (dest / "data" / "state.db").read_text() == "precious"
+
+
+def test_install_replace_new_zips_own_data_dir_is_discarded(settings):
+    (settings.tools_dir / "taken").mkdir()
+    old_data = settings.tools_dir / "taken" / "data"
+    old_data.mkdir()
+    (old_data / "state.db").write_text("precious")
+
+    src = settings.staging_dir / "newtool"
+    src.mkdir()
+    (src / "data").mkdir()
+    (src / "data" / "seed.txt").write_text("shipped with the zip")
+
+    dest = uploads.install_tool_dir(src, "taken", settings, replace=True)
+    assert (dest / "data" / "state.db").read_text() == "precious"
+    assert not (dest / "data" / "seed.txt").exists()
+
+
+def test_install_replace_without_existing_data_dir_is_unaffected(settings):
+    (settings.tools_dir / "taken").mkdir()
+    (settings.tools_dir / "taken" / "old.txt").write_text("old")
+
+    src = settings.staging_dir / "newtool"
+    src.mkdir()
+    (src / "new.txt").write_text("new")
+
+    dest = uploads.install_tool_dir(src, "taken", settings, replace=True)
+    assert (dest / "new.txt").is_file()
+    assert not (dest / "data").exists()
+
+
+def test_stage_and_apply_update_preserves_data(settings, tmp_path):
+    (settings.tools_dir / "taken").mkdir()
+    (settings.tools_dir / "taken" / "old.txt").write_text("old")
+    data_dir = settings.tools_dir / "taken" / "data"
+    data_dir.mkdir()
+    (data_dir / "state.db").write_text("precious")
+
+    z = build_zip(tmp_path / "update.zip", {"new.txt": "new"})
+    assert not uploads.has_pending_update("taken", settings)
+    uploads.stage_update(z, "taken", settings)
+    assert uploads.has_pending_update("taken", settings)
+    # staging doesn't touch the live tool dir
+    assert (settings.tools_dir / "taken" / "old.txt").is_file()
+
+    dest = uploads.apply_pending_update("taken", settings)
+    assert (dest / "new.txt").is_file()
+    assert not (dest / "old.txt").exists()
+    assert (dest / "data" / "state.db").read_text() == "precious"
+    assert not uploads.has_pending_update("taken", settings)
+
+
+def test_apply_pending_update_without_staged_raises_404(settings):
+    (settings.tools_dir / "taken").mkdir()
+    with pytest.raises(uploads.UploadError) as exc:
+        uploads.apply_pending_update("taken", settings)
+    assert exc.value.status_code == 404
+
+
+def test_discard_pending_update(settings, tmp_path):
+    (settings.tools_dir / "taken").mkdir()
+    z = build_zip(tmp_path / "update.zip", {"new.txt": "new"})
+    uploads.stage_update(z, "taken", settings)
+    assert uploads.has_pending_update("taken", settings)
+    uploads.discard_pending_update("taken", settings)
+    assert not uploads.has_pending_update("taken", settings)
+
+
+def test_stage_update_replaces_previously_staged_update(settings, tmp_path):
+    (settings.tools_dir / "taken").mkdir()
+    z1 = build_zip(tmp_path / "u1.zip", {"a.txt": "1"})
+    uploads.stage_update(z1, "taken", settings)
+    z2 = build_zip(tmp_path / "u2.zip", {"b.txt": "2"})
+    uploads.stage_update(z2, "taken", settings)
+    pending = settings.pending_updates_dir / "taken"
+    assert not (pending / "a.txt").exists()
+    assert (pending / "b.txt").is_file()
+
+
 def test_sanitize_tool_id():
     assert uploads.sanitize_tool_id("My Cool Tool.zip") == "My-Cool-Tool"
     assert uploads.sanitize_tool_id("whisper_v2") == "whisper_v2"

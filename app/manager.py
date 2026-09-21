@@ -12,7 +12,7 @@ import os
 import time
 from pathlib import Path
 
-from . import procutil, registry
+from . import procutil, registry, uploads
 from .config import Settings
 from .health import check_loopback_bind, wait_healthy
 from .logbuf import LogHub
@@ -441,6 +441,8 @@ class ProcessManager:
             has_git=(entry.path / ".git").is_dir(),
             git_behind=git.get("behind"),
             git_checked_at=git.get("checked_at"),
+            is_linked=entry.path.is_symlink(),
+            has_pending_update=uploads.has_pending_update(tool_id, self.settings),
             disk_mb=self.disk_mb.get(tool_id),
             spark_cpu=[round(c, 1) for _, c, _ in recent],
             spark_rss=[round(r, 1) for _, _, r in recent],

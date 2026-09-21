@@ -103,6 +103,116 @@
 </script>
 {% endif %}
 
+{% if not tool.is_linked %}
+<section class="panel" id="update-panel">
+  <div class="panel-head">
+    <h2>Update</h2>
+  </div>
+  <p class="hint">Upload a new zip to stage an update for this tool. Nothing changes until you apply it below
+     — its <code>data/</code> folder is carried over either way.</p>
+  <div class="form-actions">
+    <input type="file" id="update-file-input" accept=".zip">
+    <button class="btn" id="update-stage-btn" title="Upload &amp; stage">{{ icons.upload(14) }}<span class="label">Upload &amp; stage</span></button>
+    <progress id="update-progress" max="100" value="0" hidden></progress>
+  </div>
+  <p class="hint" id="update-status">Checking for a staged update…</p>
+  <div class="form-actions" id="update-apply-actions" hidden>
+    <button class="btn btn-primary" id="update-apply-btn" title="Apply staged update">{{ icons.download(14) }}<span class="label">Apply update</span></button>
+    <button class="btn btn-ghost" id="update-discard-btn" title="Discard staged update">{{ icons.x(14) }}<span class="label">Discard</span></button>
+  </div>
+  <p class="hint" id="update-msg"></p>
+  <template id="icon-x-update-tpl">{{ icons.x(14) }}</template>
+  <template id="icon-check-update-tpl">{{ icons.check(14) }}</template>
+</section>
+<script>
+(function () {
+  const ICON_X = document.getElementById("icon-x-update-tpl").innerHTML;
+  const ICON_CHECK = document.getElementById("icon-check-update-tpl").innerHTML;
+  const fileInput = document.getElementById("update-file-input");
+  const stageBtn = document.getElementById("update-stage-btn");
+  const progress = document.getElementById("update-progress");
+  const status = document.getElementById("update-status");
+  const applyActions = document.getElementById("update-apply-actions");
+  const applyBtn = document.getElementById("update-apply-btn");
+  const discardBtn = document.getElementById("update-discard-btn");
+  const msg = document.getElementById("update-msg");
+  function setMsg(el, icon, text) { el.innerHTML = icon; el.append(" " + text); }
+
+  async function refresh() {
+    try {
+      const d = await (await fetch("/api/tools/{{ tool.id }}")).json();
+      if (d.has_pending_update) {
+        status.textContent = "An update is staged and ready to apply.";
+        applyActions.hidden = false;
+      } else {
+        status.textContent = "No update staged.";
+        applyActions.hidden = true;
+      }
+    } catch { status.textContent = ""; }
+  }
+
+  stageBtn.addEventListener("click", () => {
+    const file = fileInput.files[0];
+    if (!file) { setMsg(msg, ICON_X, "choose a .zip file first"); return; }
+    stageBtn.disabled = true;
+    msg.textContent = "";
+    progress.hidden = false;
+    progress.value = 0;
+
+    const xhr = new XMLHttpRequest();
+    const form = new FormData();
+    form.append("file", file);
+    xhr.upload.addEventListener("progress", (ev) => {
+      if (ev.lengthComputable) progress.value = (ev.loaded / ev.total) * 100;
+    });
+    xhr.addEventListener("load", async () => {
+      progress.hidden = true;
+      stageBtn.disabled = false;
+      fileInput.value = "";
+      try {
+        const res = JSON.parse(xhr.responseText);
+        if (xhr.status >= 200 && xhr.status < 300) { setMsg(msg, ICON_CHECK, "Staged — review and apply below."); }
+        else { setMsg(msg, ICON_X, res.detail || "staging failed"); }
+      } catch { setMsg(msg, ICON_X, "staging failed (" + xhr.status + ")"); }
+      await refresh();
+    });
+    xhr.addEventListener("error", () => {
+      progress.hidden = true;
+      stageBtn.disabled = false;
+      setMsg(msg, ICON_X, "network error");
+    });
+    xhr.open("POST", "/api/tools/{{ tool.id }}/update");
+    xhr.send(form);
+  });
+
+  applyBtn.addEventListener("click", async () => {
+    applyBtn.disabled = true; discardBtn.disabled = true; msg.textContent = "";
+    try {
+      const res = await fetch("/api/tools/{{ tool.id }}/update/apply", { method: "POST" });
+      const d = await res.json();
+      if (!res.ok) { setMsg(msg, ICON_X, d.detail || "apply failed"); }
+      else { setMsg(msg, ICON_CHECK, "Applied — reinstalling in the background (watch the Install log)."); }
+    } catch { setMsg(msg, ICON_X, "network error"); }
+    await refresh();
+    applyBtn.disabled = false; discardBtn.disabled = false;
+  });
+
+  discardBtn.addEventListener("click", async () => {
+    applyBtn.disabled = true; discardBtn.disabled = true; msg.textContent = "";
+    try {
+      const res = await fetch("/api/tools/{{ tool.id }}/update", { method: "DELETE" });
+      if (!res.ok) { const d = await res.json(); setMsg(msg, ICON_X, d.detail || "discard failed"); }
+      else { setMsg(msg, ICON_CHECK, "Discarded."); }
+    } catch { setMsg(msg, ICON_X, "network error"); }
+    await refresh();
+    applyBtn.disabled = false; discardBtn.disabled = false;
+  });
+
+  refresh();
+})();
+</script>
+{% endif %}
+
 <section class="panel" id="activity-panel" data-tool="{{ tool.id }}">
   <div class="panel-head"><h2>Activity</h2></div>
   <div class="chart-block">

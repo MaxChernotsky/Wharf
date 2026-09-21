@@ -93,14 +93,64 @@ def extract_zip(zip_path: Path, settings: Settings) -> Path:
 
 
 def install_tool_dir(src: Path, tool_id: str, settings: Settings, *, replace: bool = False) -> Path:
-    """Atomically move an extracted tool into /data/tools/<tool_id>."""
+    """Atomically move an extracted tool into /data/tools/<tool_id>.
+
+    A tool's `data/` subfolder is its own convention for persistent storage —
+    on a replace (update), it's carried over instead of being wiped along
+    with the rest of the old tool dir.
+    """
     dest = settings.tools_dir / tool_id
+    preserved_data = None
     if dest.exists():
         if not replace:
             raise UploadError(f"a tool named {tool_id!r} already exists", status_code=409)
+        old_data = dest / "data"
+        if old_data.is_dir() and not old_data.is_symlink():
+            preserved_data = settings.staging_dir / f"{uuid.uuid4().hex}-data"
+            shutil.move(str(old_data), str(preserved_data))
         shutil.rmtree(dest)
     os.replace(src, dest)  # same filesystem: staging lives under /data
+    if preserved_data is not None:
+        new_data = dest / "data"
+        if new_data.is_symlink() or new_data.is_file():
+            new_data.unlink()
+        elif new_data.is_dir():
+            shutil.rmtree(new_data)
+        shutil.move(str(preserved_data), str(new_data))
     return dest
+
+
+def stage_update(zip_path: Path, tool_id: str, settings: Settings) -> Path:
+    """Extract a zip and park it as a pending update for an already-installed
+    tool, without touching the live tool dir. Replaces any update already
+    staged for this tool_id; the caller is responsible for confirming the
+    tool actually exists first."""
+    src = extract_zip(zip_path, settings)
+    dest = settings.pending_updates_dir / tool_id
+    if dest.exists():
+        shutil.rmtree(dest)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    os.replace(src, dest)  # same filesystem: staging lives under /data
+    cleanup_staging(src, settings)
+    return dest
+
+
+def has_pending_update(tool_id: str, settings: Settings) -> bool:
+    return (settings.pending_updates_dir / tool_id).is_dir()
+
+
+def discard_pending_update(tool_id: str, settings: Settings) -> None:
+    shutil.rmtree(settings.pending_updates_dir / tool_id, ignore_errors=True)
+
+
+def apply_pending_update(tool_id: str, settings: Settings) -> Path:
+    """Install a previously staged update into the live tool dir — same
+    replace-and-preserve-data/ path as install_tool_dir(replace=True), which
+    moves the staged copy into place (nothing left to clean up after)."""
+    pending = settings.pending_updates_dir / tool_id
+    if not pending.is_dir():
+        raise UploadError("no update staged for this tool", status_code=404)
+    return install_tool_dir(pending, tool_id, settings, replace=True)
 
 
 def link_tool_dir(tool_id: str, src: Path, settings: Settings) -> Path:

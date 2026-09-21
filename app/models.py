@@ -91,6 +91,8 @@ class ToolInfo(BaseModel):
     has_git: bool = False
     git_behind: int | None = None
     git_checked_at: float | None = None
+    is_linked: bool = False  # tools_dir/<id> is a symlink to a dev checkout elsewhere
+    has_pending_update: bool = False  # a zip update is staged, waiting to be applied
     disk_mb: float | None = None
     spark_cpu: list[float] = Field(default_factory=list)
     spark_rss: list[float] = Field(default_factory=list)
